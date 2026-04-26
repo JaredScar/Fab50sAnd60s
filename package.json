@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "import:legacy-gallery": "node scripts/import-legacy-gallery-to-supabase.mjs",
     "lint": "eslint ."
   },
   "dependencies": {
