@@ -6,6 +6,22 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Upload,
   Trash2,
   ImagePlus,
@@ -13,6 +29,7 @@ import {
   XCircle,
   Loader2,
   AlertCircle,
+  Pencil,
 } from "lucide-react"
 
 const CATEGORIES = ["Car Shows", "Cruise Nights", "Member Cars", "Club Events", "Other"]
@@ -23,7 +40,8 @@ interface GalleryItem {
   caption: string
   category: string
   storage_path?: string
-  created_at: string
+  created_at?: string
+  uploadedAt?: string
 }
 
 type UploadStatus = "idle" | "uploading" | "success" | "error"
@@ -48,7 +66,17 @@ export default function AdminGalleryPage() {
   const [preview, setPreview] = useState<string | null>(null)
   const [pendingFile, setPending] = useState<File | null>(null)
   const [role, setRole] = useState<string>("")
+  const [deleteTarget, setDeleteTarget] = useState<GalleryItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editing, setEditing] = useState<GalleryItem | null>(null)
+  const [editCaption, setEditCaption] = useState("")
+  const [editCategory, setEditCategory] = useState(CATEGORIES[0])
+  const [editFile, setEditFile] = useState<File | null>(null)
+  const [editPreview, setEditPreview] = useState<string | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
+  const editFileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -60,11 +88,14 @@ export default function AdminGalleryPage() {
 
   async function fetchPhotos() {
     setLoading(true)
-    const { data } = await supabase
-      .from("gallery_items")
-      .select("*")
-      .order("created_at", { ascending: false })
-    setPhotos(data ?? [])
+    try {
+      const response = await fetch("/api/gallery")
+      if (!response.ok) throw new Error("Unable to load gallery photos")
+      const data = await response.json()
+      setPhotos(data ?? [])
+    } catch {
+      setPhotos([])
+    }
     setLoading(false)
   }
 
@@ -130,19 +161,120 @@ export default function AdminGalleryPage() {
     setTimeout(() => setStatus("idle"), 3000)
   }
 
-  async function handleDelete(photo: GalleryItem) {
-    if (!confirm("Delete this photo permanently?")) return
-
-    // Remove from storage if it has a storage_path
-    if (photo.storage_path) {
-      await supabase.storage.from("media").remove([photo.storage_path])
+  function openEditDialog(photo: GalleryItem) {
+    if (!photo.created_at) {
+      setErrorMsg("This legacy photo is not in Supabase yet, so it cannot be edited from this panel.")
+      setStatus("error")
+      return
     }
 
-    await supabase.from("gallery_items").delete().eq("id", photo.id)
+    setEditing(photo)
+    setEditCaption(photo.caption)
+    setEditCategory(photo.category)
+    setEditFile(null)
+    setEditPreview(photo.src)
+    setErrorMsg("")
+    setStatus("idle")
+    setEditOpen(true)
+  }
+
+  function handleEditFileSelect(file: File) {
+    setEditFile(file)
+    setEditPreview(URL.createObjectURL(file))
+  }
+
+  async function handleSaveEdit() {
+    if (!editing) return
+
+    setSavingEdit(true)
+    setErrorMsg("")
+
+    let src = editing.src
+    let storagePath = editing.storage_path
+
+    if (editFile) {
+      const ext = editFile.name.split(".").pop()?.toLowerCase() ?? "jpg"
+      const newStoragePath = `gallery/${newId()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from("media")
+        .upload(newStoragePath, editFile, { contentType: editFile.type })
+
+      if (uploadError) {
+        setErrorMsg(uploadError.message)
+        setStatus("error")
+        setSavingEdit(false)
+        return
+      }
+
+      const { data: urlData } = supabase.storage.from("media").getPublicUrl(newStoragePath)
+      src = urlData.publicUrl
+      storagePath = newStoragePath
+    }
+
+    const { error: updateError } = await supabase
+      .from("gallery_items")
+      .update({
+        src,
+        caption: editCaption.trim(),
+        category: editCategory,
+        storage_path: storagePath,
+      })
+      .eq("id", editing.id)
+
+    if (updateError) {
+      setErrorMsg(updateError.message)
+      setStatus("error")
+      setSavingEdit(false)
+      return
+    }
+
+    if (editFile && editing.storage_path) {
+      await supabase.storage.from("media").remove([editing.storage_path])
+    }
+
+    setSavingEdit(false)
+    setEditOpen(false)
+    setEditing(null)
+    setEditFile(null)
+    setEditPreview(null)
     fetchPhotos()
   }
 
-  const canEdit = role === "super_admin" || role === "admin"
+  function openDeleteDialog(photo: GalleryItem) {
+    if (!photo.created_at) {
+      setErrorMsg("This legacy photo is not in Supabase yet, so it cannot be deleted from this panel.")
+      setStatus("error")
+      return
+    }
+
+    setDeleteTarget(photo)
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setErrorMsg("")
+
+    const { error } = await supabase.from("gallery_items").delete().eq("id", deleteTarget.id)
+    if (error) {
+      setErrorMsg(error.message)
+      setStatus("error")
+      setDeleting(false)
+      return
+    }
+
+    // Remove from storage after the database row is gone, so a failed delete does not leave a broken image.
+    if (deleteTarget.storage_path) {
+      await supabase.storage.from("media").remove([deleteTarget.storage_path])
+    }
+
+    setDeleting(false)
+    setDeleteTarget(null)
+    fetchPhotos()
+  }
+
+  const canManage = role === "super_admin" || role === "admin"
+  const canUpdate = canManage || role === "editor"
 
   return (
     <div className="min-h-screen bg-background">
@@ -158,7 +290,7 @@ export default function AdminGalleryPage() {
       <div className="mx-auto max-w-5xl px-6 py-10 space-y-10">
 
         {/* Upload section — admins only */}
-        {canEdit && (
+        {canManage && (
           <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
             <h2 className="mb-6 text-lg font-semibold text-foreground flex items-center gap-2">
               <ImagePlus className="h-5 w-5 text-primary" />
@@ -241,11 +373,11 @@ export default function AdminGalleryPage() {
         )}
 
         {/* Editors see a notice */}
-        {!canEdit && (
+        {!canManage && (
           <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-4">
             <AlertCircle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
             <p className="text-sm text-muted-foreground">
-              You have editor access. You can view the gallery but only admins can upload or delete photos.
+              You have editor access. You can edit gallery details, but only admins can upload or delete photos.
             </p>
           </div>
         )}
@@ -284,14 +416,25 @@ export default function AdminGalleryPage() {
                     <p className="truncate text-sm font-medium text-foreground">{photo.caption}</p>
                     <Badge variant="outline" className="mt-1 text-xs">{photo.category}</Badge>
                   </div>
-                  {canEdit && (
-                    <button
-                      onClick={() => handleDelete(photo)}
-                      className="absolute right-2 top-2 rounded-full bg-background/80 p-1.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
-                      title="Delete photo"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  {photo.created_at && canUpdate && (
+                    <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        onClick={() => openEditDialog(photo)}
+                        className="rounded-full bg-background/80 p-1.5 hover:bg-primary hover:text-primary-foreground"
+                        title="Edit photo"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      {canManage && (
+                        <button
+                          onClick={() => openDeleteDialog(photo)}
+                          className="rounded-full bg-background/80 p-1.5 hover:bg-destructive hover:text-destructive-foreground"
+                          title="Delete photo"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
@@ -299,6 +442,106 @@ export default function AdminGalleryPage() {
           )}
         </section>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              <span className="flex items-center gap-2">
+                <Pencil className="h-5 w-5" />
+                Edit Photo
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {editPreview && (
+              <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
+                <Image src={editPreview} alt={editCaption || "Photo preview"} fill className="object-contain" unoptimized />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Caption</label>
+              <input
+                type="text"
+                value={editCaption}
+                onChange={(e) => setEditCaption(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Category</label>
+              <select
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+
+            {canManage && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Replace Image</label>
+                <input
+                  ref={editFileInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleEditFileSelect(file)
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={() => editFileInput.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Choose Replacement
+                </Button>
+                {editFile && <p className="text-xs text-muted-foreground">{editFile.name}</p>}
+              </div>
+            )}
+
+            {status === "error" && errorMsg && (
+              <p className="flex items-center gap-1.5 text-sm text-destructive">
+                <XCircle className="h-4 w-4" /> {errorMsg}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveEdit} disabled={savingEdit || !editCaption.trim()}>
+                {savingEdit ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save Photo"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this photo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the photo from the gallery. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                handleDelete()
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : "Delete Photo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
