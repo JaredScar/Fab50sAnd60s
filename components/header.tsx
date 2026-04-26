@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { useSiteContent } from "@/hooks/use-site-content"
 
 const navLinks = [
   { href: "/about", label: "About" },
@@ -19,6 +20,13 @@ const navLinks = [
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false)
+  const content = useSiteContent()
+  const identity = content.global.identity as unknown as {
+    brandTitle: string
+    brandSubtitle: string
+    logoAlt: string
+    joinLabel: string
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -27,14 +35,14 @@ export function Header() {
         <Link href="/" className="flex items-center gap-3">
           <Image
             src="/images/logo.png"
-            alt="Fab 50s & 60s Nostalgia Car Club"
+            alt={identity.logoAlt}
             width={70}
             height={70}
             className="h-16 w-auto"
           />
           <div className="hidden sm:block">
-            <p className="text-lg font-bold leading-tight text-foreground">Fab 50s & 60s</p>
-            <p className="text-sm text-muted-foreground">Nostalgia Car Club</p>
+            <p className="text-lg font-bold leading-tight text-foreground">{identity.brandTitle}</p>
+            <p className="text-sm text-muted-foreground">{identity.brandSubtitle}</p>
           </div>
         </Link>
 
@@ -54,7 +62,7 @@ export function Header() {
         {/* Desktop CTA */}
         <div className="hidden md:block">
           <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
-            <Link href="/membership">Join the Club</Link>
+            <Link href="/membership">{identity.joinLabel}</Link>
           </Button>
         </div>
 
@@ -69,7 +77,7 @@ export function Header() {
             <div className="flex flex-col gap-8 pt-8">
               <Image
                 src="/images/logo.png"
-                alt="Fab 50s & 60s Nostalgia Car Club"
+                alt={identity.logoAlt}
                 width={120}
                 height={120}
                 className="mx-auto h-24 w-auto"
@@ -88,7 +96,7 @@ export function Header() {
               </nav>
               <Button asChild size="lg" className="mx-auto w-fit bg-primary text-primary-foreground">
                 <Link href="/membership" onClick={() => setIsOpen(false)}>
-                  Join the Club
+                  {identity.joinLabel}
                 </Link>
               </Button>
             </div>

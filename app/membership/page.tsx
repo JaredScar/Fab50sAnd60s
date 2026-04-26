@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
@@ -15,28 +17,7 @@ import {
   Users,
   Star,
 } from "lucide-react"
-
-const firstYearBenefits = [
-  "Club logo shirt or hat (one per person)",
-  "Club Roster with all member contacts",
-  "Copy of Club By-Laws",
-  "Full car show schedule for the year",
-  "Access to all club events and cruise nights",
-  "Weekly Wednesday cruise nights at SmithHaven Mall",
-  "Eligibility for the Annual Picnic and Holiday Party*",
-  "Drag plates, flags, and accessories available for purchase",
-]
-
-const memberExpectations = [
-  "Get donations for show raffles",
-  "Sell raffle and 50/50 tickets at events",
-  "Park and stage cars at shows",
-  "Judge cars at our shows",
-  "Participate in car shows",
-  "Hand out and promote show flyers",
-  "Help with setup and cleanup at car shows",
-  "Promote events in your community",
-]
+import { useSiteContent } from "@/hooks/use-site-content"
 
 const faqs = [
   {
@@ -65,7 +46,27 @@ const faqs = [
   },
 ]
 
+interface MembershipPageContent {
+  title: string
+  description: string
+  aboutTitle: string
+  aboutParagraphs: string[]
+  benefitsTitle: string
+  benefits: string[]
+  participationTitle: string
+  participationDescription: string
+  expectations: string[]
+  applicationUrl: string
+  questionsTitle: string
+  questionsDescription: string
+  secretaryName: string
+  secretaryPhone: string
+}
+
 export default function MembershipPage() {
+  const content = useSiteContent()
+  const page = content.membershipPage.main as unknown as MembershipPageContent
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -80,11 +81,10 @@ export default function MembershipPage() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                  Join the Club
+                  {page.title}
                 </h1>
                 <p className="mt-2 max-w-2xl text-lg text-muted-foreground">
-                  We are delighted you are considering joining the Fabulous 50's & 60's
-                  Nostalgia Car Club. On behalf of the Board of Directors — Welcome!
+                  {page.description}
                 </p>
               </div>
             </div>
@@ -96,23 +96,12 @@ export default function MembershipPage() {
           {/* Welcome message */}
           <section className="rounded-2xl bg-primary/5 border border-primary/15 p-8">
             <div className="max-w-3xl">
-              <h2 className="text-xl font-bold text-foreground">About Our Club</h2>
-              <p className="mt-4 text-muted-foreground leading-relaxed">
-                The Fabulous 50's and 60's Nostalgia Car Club, Inc. is dedicated to promoting
-                friendship and camaraderie for all persons who appreciate classic, antique,
-                customized, and special-interest vehicles.{" "}
-                <strong className="text-foreground">
-                  We do not just accept 50's and 60's vehicles — all makes and models are
-                  welcome.
-                </strong>
-              </p>
-              <p className="mt-3 text-muted-foreground leading-relaxed">
-                We are a not-for-profit corporation and support many community and national
-                charities, as well as other Long Island car clubs. We travel as a group
-                throughout Long Island to display our vehicles and help raise money for good
-                causes. We do peer judging, as found in most car shows, and our members have
-                years of experience building, restoring, and maintaining classic vehicles.
-              </p>
+              <h2 className="text-xl font-bold text-foreground">{page.aboutTitle}</h2>
+              {page.aboutParagraphs.map((paragraph) => (
+                <p key={paragraph} className="mt-4 text-muted-foreground leading-relaxed">
+                  {paragraph}
+                </p>
+              ))}
             </div>
           </section>
 
@@ -203,13 +192,13 @@ export default function MembershipPage() {
             {/* What you get */}
             <div>
               <div className="mb-6 flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-foreground">What You Get</h2>
+                <h2 className="text-2xl font-bold text-foreground">{page.benefitsTitle}</h2>
                 <div className="h-px flex-1 bg-border" />
               </div>
               <Card>
                 <CardContent className="p-6">
                   <ul className="space-y-3">
-                    {firstYearBenefits.map((benefit, i) => (
+                    {page.benefits.map((benefit, i) => (
                       <li key={i} className="flex items-start gap-3">
                         <div className="mt-0.5 shrink-0 rounded-full bg-primary/10 p-1">
                           <Check className="h-3.5 w-3.5 text-primary" />
@@ -230,17 +219,16 @@ export default function MembershipPage() {
             {/* What we expect */}
             <div>
               <div className="mb-6 flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-foreground">Member Participation</h2>
+                <h2 className="text-2xl font-bold text-foreground">{page.participationTitle}</h2>
                 <div className="h-px flex-1 bg-border" />
               </div>
               <Card>
                 <CardContent className="p-6">
                   <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                    We are a hands-on club. Because we are a not-for-profit, we support
-                    ourselves by running car shows. Member participation keeps our club thriving.
+                    {page.participationDescription}
                   </p>
                   <ul className="space-y-3">
-                    {memberExpectations.map((item, i) => (
+                    {page.expectations.map((item, i) => (
                       <li key={i} className="flex items-start gap-3">
                         <div className="mt-0.5 shrink-0 rounded-full bg-accent/10 p-1">
                           <Star className="h-3.5 w-3.5 text-accent" />
@@ -279,7 +267,7 @@ export default function MembershipPage() {
                   </p>
                   <Button asChild variant="outline" size="sm" className="mt-4 w-full">
                     <a
-                      href="https://fab5060carclub.com/wp-content/uploads/2024/01/club-application-form-pdf.pdf"
+                      href={page.applicationUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -351,22 +339,22 @@ export default function MembershipPage() {
                 </div>
               </div>
               <div>
-                <h2 className="text-xl font-bold text-foreground">Questions?</h2>
+                <h2 className="text-xl font-bold text-foreground">{page.questionsTitle}</h2>
                 <p className="mt-3 text-muted-foreground leading-relaxed">
-                  Our club secretary is happy to help answer any questions about membership.
+                  {page.questionsDescription}
                 </p>
                 <div className="mt-5 space-y-3">
                   <div className="flex items-center gap-3">
                     <Users className="h-5 w-5 text-primary shrink-0" />
-                    <p className="font-medium text-foreground">Cathleen T. Somma, Club Secretary</p>
+                    <p className="font-medium text-foreground">{page.secretaryName}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Phone className="h-5 w-5 text-primary shrink-0" />
                     <a
-                      href="tel:6319262554"
+                      href={`tel:${page.secretaryPhone.replace(/\D/g, "")}`}
                       className="text-primary hover:underline font-medium"
                     >
-                      (631) 926-2554
+                      {page.secretaryPhone}
                     </a>
                   </div>
                 </div>

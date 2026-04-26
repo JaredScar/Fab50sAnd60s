@@ -7,10 +7,37 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Mail, MapPin, Phone, Facebook, Send } from "lucide-react"
+import { useSiteContent } from "@/hooks/use-site-content"
+
+interface HomeContactContent {
+  title: string
+  description: string
+  meetingTitle: string
+  meetingLines: string[]
+  emailTitle: string
+  facebookTitle: string
+  facebookDescription: string
+  formTitle: string
+  formDescription: string
+  successTitle: string
+  successDescription: string
+  sendAnotherLabel: string
+  submitLabel: string
+  submittingLabel: string
+}
+
+interface GlobalContactContent {
+  email: string
+  facebookUrl: string
+  facebookLabel: string
+}
 
 export function Contact() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const content = useSiteContent()
+  const section = content.homepage.contact as unknown as HomeContactContent
+  const globalContact = content.global.contact as unknown as GlobalContactContent
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -29,10 +56,10 @@ export function Contact() {
         {/* Section Header */}
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Get In Touch
+            {section.title}
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Have questions? Want to learn more? We'd love to hear from you!
+            {section.description}
           </p>
         </div>
 
@@ -46,11 +73,14 @@ export function Contact() {
                     <MapPin className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">Meeting Location</h3>
+                    <h3 className="font-semibold text-foreground">{section.meetingTitle}</h3>
                     <p className="mt-1 text-muted-foreground">
-                      American Legion Hall<br />
-                      Levittown, NY<br />
-                      <span className="text-sm">First Tuesday of every month at 7:30 PM</span>
+                      {section.meetingLines.map((line, index) => (
+                        <span key={line} className={index === section.meetingLines.length - 1 ? "text-sm" : undefined}>
+                          {line}
+                          {index < section.meetingLines.length - 1 && <br />}
+                        </span>
+                      ))}
                     </p>
                   </div>
                 </div>
@@ -64,13 +94,13 @@ export function Contact() {
                     <Mail className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">Email Us</h3>
+                    <h3 className="font-semibold text-foreground">{section.emailTitle}</h3>
                     <p className="mt-1 text-muted-foreground">
                       <a 
-                        href="mailto:info@fab5060carclub.com" 
+                        href={`mailto:${globalContact.email}`}
                         className="text-primary hover:underline"
                       >
-                        info@fab5060carclub.com
+                        {globalContact.email}
                       </a>
                     </p>
                   </div>
@@ -85,19 +115,19 @@ export function Contact() {
                     <Facebook className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">Follow Us</h3>
+                    <h3 className="font-semibold text-foreground">{section.facebookTitle}</h3>
                     <p className="mt-1 text-muted-foreground">
                       <a 
-                        href="https://facebook.com/fab5060carclub" 
+                        href={globalContact.facebookUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"
                       >
-                        Facebook - Fab 50s & 60s Car Club
+                        {globalContact.facebookLabel}
                       </a>
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      See event photos and updates
+                      {section.facebookDescription}
                     </p>
                   </div>
                 </div>
@@ -108,9 +138,9 @@ export function Contact() {
           {/* Contact Form */}
           <Card className="border-border/50">
             <CardHeader>
-              <h3 className="text-xl font-semibold text-foreground">Send Us a Message</h3>
+              <h3 className="text-xl font-semibold text-foreground">{section.formTitle}</h3>
               <p className="text-sm text-muted-foreground">
-                Fill out the form below and we'll get back to you soon.
+                {section.formDescription}
               </p>
             </CardHeader>
             <CardContent>
@@ -119,16 +149,16 @@ export function Contact() {
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <Send className="h-8 w-8" />
                   </div>
-                  <h4 className="mt-4 text-xl font-semibold text-foreground">Message Sent!</h4>
+                  <h4 className="mt-4 text-xl font-semibold text-foreground">{section.successTitle}</h4>
                   <p className="mt-2 text-muted-foreground">
-                    Thanks for reaching out. We'll get back to you soon.
+                    {section.successDescription}
                   </p>
                   <Button 
                     variant="outline" 
                     className="mt-6"
                     onClick={() => setSubmitted(false)}
                   >
-                    Send Another Message
+                    {section.sendAnotherLabel}
                   </Button>
                 </div>
               ) : (
@@ -191,7 +221,7 @@ export function Contact() {
                     className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                     disabled={isSubmitting}
                   >
-                    {isSubmitting ? "Sending..." : "Send Message"}
+                    {isSubmitting ? section.submittingLabel : section.submitLabel}
                   </Button>
                 </form>
               )}

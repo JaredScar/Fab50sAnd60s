@@ -1,21 +1,29 @@
+"use client"
+
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Check, Star } from "lucide-react"
 import Link from "next/link"
+import { useSiteContent } from "@/hooks/use-site-content"
 
-const benefits = [
-  "Monthly club meetings with fellow enthusiasts",
-  "Exclusive cruise nights and car shows",
-  "Annual BBQ and holiday parties",
-  "Club newsletter and event updates",
-  "Discounts at participating auto shops",
-  "Voting rights on club activities",
-  "Official club merchandise",
-  "Access to our member network for advice and help",
-]
+interface MembershipContent {
+  badge: string
+  title: string
+  description: string
+  benefits: string[]
+  price: string
+  priceSuffix: string
+  priceNote: string
+  cardNote: string
+  ctaLabel: string
+  footerNote: string
+}
 
 export function Membership() {
+  const content = useSiteContent()
+  const membership = content.homepage.membership as unknown as MembershipContent
+
   return (
     <section id="membership" className="bg-background py-20 sm:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -24,19 +32,18 @@ export function Membership() {
           <div>
             <Badge className="mb-4 bg-accent/10 text-accent">
               <Star className="mr-1 h-3 w-3" />
-              Membership
+              {membership.badge}
             </Badge>
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-              Join Our Family
+              {membership.title}
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-              Become a member of Long Island's most welcoming car club. Whether you're a 
-              seasoned collector or just getting started, there's a place for you here.
+              {membership.description}
             </p>
 
             {/* Benefits List */}
             <ul className="mt-8 space-y-3">
-              {benefits.map((benefit) => (
+              {membership.benefits.map((benefit) => (
                 <li key={benefit} className="flex items-start gap-3">
                   <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
                     <Check className="h-3 w-3 text-primary" />
@@ -54,15 +61,15 @@ export function Membership() {
                 Annual Membership
               </Badge>
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-bold text-foreground">$35</span>
-                <span className="text-muted-foreground">/year</span>
+                <span className="text-5xl font-bold text-foreground">{membership.price}</span>
+                <span className="text-muted-foreground">{membership.priceSuffix}</span>
               </div>
-              <p className="mt-2 text-muted-foreground">Per household</p>
+              <p className="mt-2 text-muted-foreground">{membership.priceNote}</p>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="rounded-lg bg-secondary/50 p-4 text-center">
                 <p className="text-sm text-muted-foreground">
-                  One low price covers your entire household. Bring the whole family to events!
+                  {membership.cardNote}
                 </p>
               </div>
 
@@ -83,12 +90,12 @@ export function Membership() {
 
               <Button asChild size="lg" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 text-lg">
                 <Link href="#contact">
-                  Apply for Membership
+                  {membership.ctaLabel}
                 </Link>
               </Button>
 
               <p className="text-center text-xs text-muted-foreground">
-                Come to a meeting first - we'd love to meet you!
+                {membership.footerNote}
               </p>
             </CardContent>
           </Card>

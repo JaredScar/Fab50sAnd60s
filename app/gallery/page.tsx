@@ -7,8 +7,7 @@ import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { ChevronLeft, ChevronRight, X, Images, Loader2 } from "lucide-react"
-
-const CATEGORIES = ["All", "Car Shows", "Cruise Nights", "Member Cars", "Club Events", "Other"]
+import { useSiteContent } from "@/hooks/use-site-content"
 
 interface GalleryItem {
   id: string
@@ -18,12 +17,23 @@ interface GalleryItem {
   uploadedAt: string
 }
 
+interface GalleryPageContent {
+  title: string
+  description: string
+  categories: string[]
+  emptyTitle: string
+  emptyAllDescription: string
+  emptyCategoryDescription: string
+}
+
 export default function GalleryPage() {
   const [photos, setPhotos]           = useState<GalleryItem[]>([])
   const [loading, setLoading]         = useState(true)
   const [activeCategory, setCategory] = useState("All")
   const [lightboxOpen, setLightbox]   = useState(false)
   const [currentIdx, setCurrentIdx]   = useState(0)
+  const content = useSiteContent()
+  const page = content.galleryPage.main as unknown as GalleryPageContent
 
   useEffect(() => {
     fetch("/api/gallery")
@@ -56,17 +66,17 @@ export default function GalleryPage() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                  Photo Gallery
+                  {page.title}
                 </h1>
                 <p className="mt-2 text-lg text-muted-foreground">
-                  Memories from our car shows, cruise nights, and club events
+                  {page.description}
                 </p>
               </div>
             </div>
 
             {/* Category filter */}
             <div className="mt-8 flex flex-wrap gap-2">
-              {CATEGORIES.map((cat) => (
+              {page.categories.map((cat) => (
                 <Button
                   key={cat}
                   variant={activeCategory === cat ? "default" : "outline"}
@@ -93,11 +103,11 @@ export default function GalleryPage() {
           {!loading && filtered.length === 0 && (
             <div className="py-24 text-center">
               <Images className="mx-auto h-12 w-12 text-muted-foreground/40" />
-              <p className="mt-4 text-lg font-medium text-foreground">No photos yet</p>
+              <p className="mt-4 text-lg font-medium text-foreground">{page.emptyTitle}</p>
               <p className="mt-1 text-muted-foreground">
                 {activeCategory === "All"
-                  ? "The admin can upload photos from the admin panel."
-                  : `No photos in the "${activeCategory}" category yet.`}
+                  ? page.emptyAllDescription
+                  : page.emptyCategoryDescription}
               </p>
             </div>
           )}

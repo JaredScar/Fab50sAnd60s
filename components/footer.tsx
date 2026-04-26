@@ -1,6 +1,9 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
 import { Facebook, Mail } from "lucide-react"
+import { useSiteContent } from "@/hooks/use-site-content"
 
 const quickLinks = [
   { href: "/about", label: "About Us" },
@@ -13,6 +16,23 @@ const quickLinks = [
 ]
 
 export function Footer() {
+  const content = useSiteContent()
+  const identity = content.global.identity as unknown as {
+    brandTitle: string
+    brandSubtitle: string
+    logoAlt: string
+    footerDescription: string
+    footerLocation: string
+    copyrightName: string
+  }
+  const contact = content.global.contact as unknown as {
+    email: string
+    facebookUrl: string
+    meetingTitle: string
+    meetingLines: string[]
+    meetingNote: string
+  }
+
   return (
     <footer className="border-t border-border bg-foreground text-background">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -22,23 +42,22 @@ export function Footer() {
             <div className="flex items-center gap-3">
               <Image
                 src="/images/logo.png"
-                alt="Fab 50s & 60s Nostalgia Car Club"
+                alt={identity.logoAlt}
                 width={60}
                 height={60}
                 className="h-14 w-auto brightness-110"
               />
               <div>
-                <p className="text-lg font-bold">Fab 50s & 60s</p>
-                <p className="text-sm text-background/70">Nostalgia Car Club</p>
+                <p className="text-lg font-bold">{identity.brandTitle}</p>
+                <p className="text-sm text-background/70">{identity.brandSubtitle}</p>
               </div>
             </div>
             <p className="mt-4 max-w-md text-background/70 leading-relaxed">
-              Long Island's friendliest car club, welcoming enthusiasts of ALL makes, 
-              models, and years since 1989. If you love cars, you belong here.
+              {identity.footerDescription}
             </p>
             <div className="mt-6 flex gap-4">
               <a
-                href="https://facebook.com/fab5060carclub"
+                href={contact.facebookUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-background/10 text-background transition-colors hover:bg-background/20"
@@ -47,7 +66,7 @@ export function Footer() {
                 <Facebook className="h-5 w-5" />
               </a>
               <a
-                href="mailto:info@fab5060carclub.com"
+                href={`mailto:${contact.email}`}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-background/10 text-background transition-colors hover:bg-background/20"
                 aria-label="Email us"
               >
@@ -75,15 +94,14 @@ export function Footer() {
 
           {/* Meeting Info */}
           <div>
-            <h4 className="font-semibold text-background">Monthly Meetings</h4>
+            <h4 className="font-semibold text-background">{contact.meetingTitle}</h4>
             <div className="mt-4 space-y-2 text-background/70">
-              <p>Second Thursday of Every Month</p>
-              <p>7:00 PM</p>
-              <p>Seaport Diner</p>
-              <p>Port Jefferson Station, NY</p>
+              {contact.meetingLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
             </div>
             <p className="mt-4 text-sm text-background/50">
-              Visitors always welcome!
+              {contact.meetingNote}
             </p>
           </div>
         </div>
@@ -92,10 +110,10 @@ export function Footer() {
         <div className="mt-12 border-t border-background/10 pt-8">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <p className="text-sm text-background/50">
-              &copy; {new Date().getFullYear()} Fabulous 50s & 60s Nostalgia Car Club. All rights reserved.
+              &copy; {new Date().getFullYear()} {identity.copyrightName}. All rights reserved.
             </p>
             <p className="text-sm text-background/50">
-              Long Island, New York
+              {identity.footerLocation}
             </p>
           </div>
         </div>

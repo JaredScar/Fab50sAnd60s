@@ -463,11 +463,11 @@ export default function AdminGalleryPage() {
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Caption</label>
-              <input
-                type="text"
+              <textarea
                 value={editCaption}
                 onChange={(e) => setEditCaption(e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                rows={4}
+                className="min-h-28 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 

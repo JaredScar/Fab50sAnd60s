@@ -18,10 +18,32 @@ import {
   Send,
   CheckCircle
 } from "lucide-react"
+import { useSiteContent } from "@/hooks/use-site-content"
+
+interface ContactPageContent {
+  title: string
+  description: string
+  meetingLocationTitle: string
+  meetingLocationLines: string[]
+  meetingTimeTitle: string
+  meetingTimeLines: string[]
+  formTitle: string
+  successTitle: string
+  successDescription: string
+  faqTitle: string
+  faqs: Array<{ question: string; answer: string }>
+}
 
 export default function ContactPage() {
   const [formSubmitted, setFormSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const content = useSiteContent()
+  const page = content.contactPage.main as unknown as ContactPageContent
+  const globalContact = content.global.contact as unknown as {
+    email: string
+    facebookUrl: string
+    facebookLabel: string
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -43,10 +65,10 @@ export default function ContactPage() {
         <div className="bg-card border-b border-border">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
             <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Contact Us
+              {page.title}
             </h1>
             <p className="mt-2 text-lg text-muted-foreground">
-              Have questions? We'd love to hear from you!
+              {page.description}
             </p>
           </div>
         </div>
@@ -61,15 +83,15 @@ export default function ContactPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                       <MapPin className="h-5 w-5 text-primary" />
                     </div>
-                    Meeting Location
+                    {page.meetingLocationTitle}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="font-medium text-foreground">American Legion Hall</p>
-                  <p className="text-muted-foreground">Levittown, NY</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    First Tuesday of every month
-                  </p>
+                  {page.meetingLocationLines.map((line, index) => (
+                    <p key={line} className={index === 0 ? "font-medium text-foreground" : "text-muted-foreground"}>
+                      {line}
+                    </p>
+                  ))}
                 </CardContent>
               </Card>
 
@@ -79,15 +101,15 @@ export default function ContactPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                       <Clock className="h-5 w-5 text-primary" />
                     </div>
-                    Meeting Time
+                    {page.meetingTimeTitle}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="font-medium text-foreground">7:30 PM</p>
-                  <p className="text-muted-foreground">First Tuesday Monthly</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Visitors and prospective members always welcome!
-                  </p>
+                  {page.meetingTimeLines.map((line, index) => (
+                    <p key={line} className={index === 0 ? "font-medium text-foreground" : "text-muted-foreground"}>
+                      {line}
+                    </p>
+                  ))}
                 </CardContent>
               </Card>
 
@@ -102,10 +124,10 @@ export default function ContactPage() {
                 </CardHeader>
                 <CardContent>
                   <a 
-                    href="mailto:fab5060carclub@gmail.com"
+                    href={`mailto:${globalContact.email}`}
                     className="font-medium text-primary hover:underline"
                   >
-                    fab5060carclub@gmail.com
+                    {globalContact.email}
                   </a>
                   <p className="mt-2 text-sm text-muted-foreground">
                     We typically respond within 24-48 hours
@@ -124,12 +146,12 @@ export default function ContactPage() {
                 </CardHeader>
                 <CardContent>
                   <a 
-                    href="https://facebook.com/fab5060carclub"
+                    href={globalContact.facebookUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-medium text-primary hover:underline"
                   >
-                    Facebook Page
+                    {globalContact.facebookLabel}
                   </a>
                   <p className="mt-2 text-sm text-muted-foreground">
                     Stay updated on events, photos, and club news
@@ -142,7 +164,7 @@ export default function ContactPage() {
             <div className="lg:col-span-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>Send Us a Message</CardTitle>
+                  <CardTitle>{page.formTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {formSubmitted ? (
@@ -151,10 +173,10 @@ export default function ContactPage() {
                         <CheckCircle className="h-8 w-8 text-green-600" />
                       </div>
                       <h3 className="mt-4 text-xl font-semibold text-foreground">
-                        Message Sent!
+                        {page.successTitle}
                       </h3>
                       <p className="mt-2 text-muted-foreground">
-                        Thank you for reaching out. We'll get back to you soon!
+                        {page.successDescription}
                       </p>
                       <Button 
                         className="mt-6" 
@@ -261,38 +283,15 @@ export default function ContactPage() {
               {/* FAQ Section */}
               <div className="mt-8">
                 <h2 className="text-xl font-semibold text-foreground">
-                  Frequently Asked Questions
+                  {page.faqTitle}
                 </h2>
                 <div className="mt-4 space-y-4">
-                  <div className="rounded-lg bg-card border border-border p-4">
-                    <h3 className="font-medium text-foreground">
-                      Do I need to own a classic car to join?
-                    </h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Absolutely not! We welcome ALL cars - classic, modern, import, domestic, 
-                      custom, stock, or project cars. If you love cars, you're welcome here.
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-card border border-border p-4">
-                    <h3 className="font-medium text-foreground">
-                      Can I attend a meeting before joining?
-                    </h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Yes! We encourage prospective members to attend a meeting or event 
-                      before joining. It's a great way to meet our members and see if we're 
-                      the right fit for you.
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-card border border-border p-4">
-                    <h3 className="font-medium text-foreground">
-                      How much does membership cost?
-                    </h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Annual membership is just $35 and includes you and your immediate family. 
-                      See our <Link href="/#membership" className="text-primary hover:underline">membership page</Link> for 
-                      full details on benefits.
-                    </p>
-                  </div>
+                  {page.faqs.map((faq) => (
+                    <div key={faq.question} className="rounded-lg bg-card border border-border p-4">
+                      <h3 className="font-medium text-foreground">{faq.question}</h3>
+                      <p className="mt-2 text-sm text-muted-foreground">{faq.answer}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

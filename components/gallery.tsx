@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react"
+import { useSiteContent } from "@/hooks/use-site-content"
 
 const galleryImages = [
   {
@@ -43,6 +44,12 @@ const galleryImages = [
 
 export function Gallery() {
   const [selectedImage, setSelectedImage] = useState<number | null>(null)
+  const content = useSiteContent()
+  const section = content.homepage.gallery as unknown as {
+    title: string
+    description: string
+    buttonLabel: string
+  }
 
   const openImage = (index: number) => setSelectedImage(index)
   const closeImage = () => setSelectedImage(null)
@@ -65,14 +72,14 @@ export function Gallery() {
         {/* Section Header */}
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Club Gallery
+            {section.title}
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Check out highlights from our events and the amazing cars our members bring
+            {section.description}
           </p>
           <Button asChild variant="outline" size="lg" className="mt-6">
             <Link href="/gallery">
-              View Full Gallery
+              {section.buttonLabel}
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </Button>

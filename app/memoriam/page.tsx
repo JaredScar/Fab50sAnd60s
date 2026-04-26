@@ -3,6 +3,7 @@ import Image from "next/image"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Heart } from "lucide-react"
+import { getSiteContent } from "@/lib/site-content-server"
 
 interface MemoriamEntry {
   id: string
@@ -12,10 +13,20 @@ interface MemoriamEntry {
   photo_url: string | null
 }
 
+interface MemoriamPageContent {
+  title: string
+  description: string
+  quote: string
+  emptyText: string
+  tributeRequest: string
+}
+
 export const revalidate = 60
 
 export default async function InMemoriamPage() {
   const supabase = await createClient()
+  const content = await getSiteContent()
+  const page = content.memoriamPage.main as unknown as MemoriamPageContent
   const { data } = await supabase
     .from("memoriam_entries")
     .select("*")
@@ -37,12 +48,10 @@ export default async function InMemoriamPage() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                  In Memoriam
+                  {page.title}
                 </h1>
                 <p className="mt-2 max-w-2xl text-lg text-muted-foreground">
-                  We honor and remember the members of the Fab 50s & 60s Nostalgia Car Club
-                  who have passed on. They were part of our family, and their memory lives on
-                  in every mile we drive.
+                  {page.description}
                 </p>
               </div>
             </div>
@@ -51,11 +60,11 @@ export default async function InMemoriamPage() {
 
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
           <blockquote className="mb-14 border-l-4 border-muted-foreground/30 pl-6 text-muted-foreground italic">
-            &ldquo;Those we love don&apos;t go away — they drive beside us every day.&rdquo;
+            &ldquo;{page.quote}&rdquo;
           </blockquote>
 
           {members.length === 0 ? (
-            <p className="text-center text-muted-foreground">No entries yet.</p>
+            <p className="text-center text-muted-foreground">{page.emptyText}</p>
           ) : (
             <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((member) => (
@@ -104,12 +113,7 @@ export default async function InMemoriamPage() {
           <div className="mt-16 rounded-2xl border border-border bg-muted/30 p-8 text-center">
             <Heart className="mx-auto mb-4 h-8 w-8 text-muted-foreground/50" />
             <p className="text-muted-foreground leading-relaxed max-w-xl mx-auto">
-              If you would like to add a tribute for a fellow club member who has passed away,
-              please reach out to us on our{" "}
-              <a href="/contact" className="text-primary underline hover:no-underline">
-                Contact page
-              </a>
-              . We want to make sure no one is forgotten.
+              {page.tributeRequest}
             </p>
           </div>
         </div>

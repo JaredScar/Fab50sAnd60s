@@ -1,10 +1,27 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ChevronRight, Car, Users, Calendar } from "lucide-react"
+import { useSiteContent } from "@/hooks/use-site-content"
+
+interface HeroContent {
+  badge: string
+  title: string
+  titleHighlight: string
+  description: string
+  primaryCta: string
+  secondaryCta: string
+  stats: Array<{ value: string; label: string }>
+}
 
 export function Hero() {
+  const content = useSiteContent()
+  const hero = content.homepage.hero as unknown as HeroContent
+  const statIcons = [Users, Calendar, Car]
+
   return (
     <section className="relative overflow-hidden bg-background py-16 sm:py-24 lg:py-32">
       {/* Background Pattern */}
@@ -21,58 +38,52 @@ export function Hero() {
               variant="outline" 
               className="mb-6 border-primary/30 bg-primary/10 text-primary px-4 py-2 text-sm font-semibold tracking-wide"
             >
-              Long Island's Friendliest Car Club
+              {hero.badge}
             </Badge>
             
             <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-              Where Car Lovers{" "}
-              <span className="text-primary">Come Together</span>
+              {hero.title}
+              {hero.titleHighlight && (
+                <>
+                  {" "}
+                  <span className="text-primary">{hero.titleHighlight}</span>
+                </>
+              )}
             </h1>
             
             <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl">
-              Whether you drive a classic '57 Chevy, a modern muscle car, or anything in between - 
-              <strong className="text-foreground"> ALL makes, models, and years are welcome</strong>. 
-              Join our community of passionate car enthusiasts.
+              {hero.description}
             </p>
 
             {/* CTA Buttons */}
             <div className="mt-10 flex flex-col gap-4 sm:flex-row">
               <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 px-8 text-lg">
                 <Link href="#membership">
-                  Become a Member
+                  {hero.primaryCta}
                   <ChevronRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="px-8 text-lg border-2">
                 <Link href="#events">
-                  View Upcoming Events
+                  {hero.secondaryCta}
                 </Link>
               </Button>
             </div>
 
             {/* Quick Stats */}
             <div className="mt-12 grid grid-cols-3 gap-8">
-              <div className="flex flex-col items-center lg:items-start">
-                <div className="flex items-center gap-2 text-primary">
-                  <Users className="h-5 w-5" />
-                  <span className="text-2xl font-bold text-foreground">100+</span>
-                </div>
-                <span className="text-sm text-muted-foreground">Members</span>
-              </div>
-              <div className="flex flex-col items-center lg:items-start">
-                <div className="flex items-center gap-2 text-primary">
-                  <Calendar className="h-5 w-5" />
-                  <span className="text-2xl font-bold text-foreground">30+</span>
-                </div>
-                <span className="text-sm text-muted-foreground">Events/Year</span>
-              </div>
-              <div className="flex flex-col items-center lg:items-start">
-                <div className="flex items-center gap-2 text-primary">
-                  <Car className="h-5 w-5" />
-                  <span className="text-2xl font-bold text-foreground">35+</span>
-                </div>
-                <span className="text-sm text-muted-foreground">Years Strong</span>
-              </div>
+              {hero.stats.map((stat, index) => {
+                const Icon = statIcons[index] ?? Car
+                return (
+                  <div key={stat.label} className="flex flex-col items-center lg:items-start">
+                    <div className="flex items-center gap-2 text-primary">
+                      <Icon className="h-5 w-5" />
+                      <span className="text-2xl font-bold text-foreground">{stat.value}</span>
+                    </div>
+                    <span className="text-sm text-muted-foreground">{stat.label}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
 

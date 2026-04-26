@@ -4,6 +4,7 @@ import { Footer } from "@/components/footer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Mail, Phone, Users, Shield } from "lucide-react"
+import { getSiteContent } from "@/lib/site-content-server"
 
 interface BoardMember {
   id: string
@@ -17,33 +18,25 @@ interface BoardMember {
   sort_order: number
 }
 
-const committees = [
-  {
-    name: "Car Show Committee",
-    description:
-      "Plans and executes all club-hosted and judged car shows. Handles staging, judging, trophies, and vendor coordination.",
-  },
-  {
-    name: "Cruise Night Committee",
-    description:
-      "Organizes the weekly Wednesday cruise nights at SmithHaven Mall from May through October.",
-  },
-  {
-    name: "Membership Committee",
-    description:
-      "Welcomes new members, processes applications, and ensures a positive experience for all club members.",
-  },
-  {
-    name: "Charity & Community",
-    description:
-      "Coordinates the club's participation in charity car shows, fundraisers, and community events across Long Island.",
-  },
-]
+interface BoardPageContent {
+  title: string
+  description: string
+  officersTitle: string
+  emptyOfficersText: string
+  contactTitle: string
+  contactDescription: string
+  committeesTitle: string
+  committees: Array<{ name: string; description: string }>
+  meetingTitle: string
+  meetingDescription: string
+}
 
 export const revalidate = 60 // revalidate every minute
 
 export default async function BoardPage() {
   const supabase = await createClient()
+  const content = await getSiteContent()
+  const page = content.boardPage.main as unknown as BoardPageContent
   const { data } = await supabase
     .from("board_members")
     .select("*")
@@ -66,12 +59,10 @@ export default async function BoardPage() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                  Board of Directors
+                  {page.title}
                 </h1>
                 <p className="mt-2 max-w-2xl text-lg text-muted-foreground">
-                  Meet the dedicated volunteers who keep the Fabulous 50s & 60s Nostalgia
-                  Car Club running. Our board is elected by the membership and serves the
-                  entire club community.
+                  {page.description}
                 </p>
               </div>
             </div>
@@ -83,11 +74,11 @@ export default async function BoardPage() {
           {/* Officers */}
           <section>
             <div className="mb-8 flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-foreground">Club Officers</h2>
+              <h2 className="text-2xl font-bold text-foreground">{page.officersTitle}</h2>
               <div className="h-px flex-1 bg-border" />
             </div>
             {officers.length === 0 ? (
-              <p className="text-muted-foreground">No board members listed yet.</p>
+              <p className="text-muted-foreground">{page.emptyOfficersText}</p>
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 {officers.map((member) => (
@@ -160,14 +151,9 @@ export default async function BoardPage() {
                 <Shield className="h-5 w-5 text-accent" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Contact a Board Member</h3>
+                <h3 className="font-semibold text-foreground">{page.contactTitle}</h3>
                 <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-                  You can reach any board member by phone using the contact information
-                  above. For general club inquiries, please visit our{" "}
-                  <a href="/contact" className="text-primary underline hover:no-underline">
-                    Contact page
-                  </a>{" "}
-                  or attend a monthly meeting to speak with board members in person.
+                  {page.contactDescription}
                 </p>
               </div>
             </div>
@@ -176,11 +162,11 @@ export default async function BoardPage() {
           {/* Committees */}
           <section>
             <div className="mb-8 flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-foreground">Club Committees</h2>
+              <h2 className="text-2xl font-bold text-foreground">{page.committeesTitle}</h2>
               <div className="h-px flex-1 bg-border" />
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
-              {committees.map((committee, i) => (
+              {page.committees.map((committee, i) => (
                 <Card key={i} className="border-border hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     <h3 className="text-lg font-semibold text-foreground">{committee.name}</h3>
@@ -194,14 +180,9 @@ export default async function BoardPage() {
           </section>
 
           <section className="rounded-2xl bg-primary/5 border border-primary/15 p-8 text-center">
-            <h2 className="text-2xl font-bold text-foreground">Attend a Meeting</h2>
+            <h2 className="text-2xl font-bold text-foreground">{page.meetingTitle}</h2>
             <p className="mt-3 max-w-xl mx-auto text-muted-foreground leading-relaxed">
-              The best way to meet the board is to come to a monthly meeting. Meetings are
-              held the <strong className="text-foreground">second Thursday of every month</strong> at{" "}
-              <strong className="text-foreground">
-                Seaport Diner, 5045 Nesconset Hwy, Port Jefferson Station, NY
-              </strong>{" "}
-              starting at <strong className="text-foreground">7:00 PM</strong>.
+              {page.meetingDescription}
             </p>
           </section>
         </div>
