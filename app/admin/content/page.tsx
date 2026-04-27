@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { defaultSiteContent, mergeSiteContent, type SiteContentMap } from "@/lib/site-content-defaults"
-import { Loader2, Save, CheckCircle, FileText, Plus, Trash2, AlertCircle } from "lucide-react"
+import { Loader2, Save, CheckCircle, FileText, Plus, Trash2, AlertCircle, ExternalLink } from "lucide-react"
 
 interface ContentItem {
   section: string
@@ -15,17 +15,103 @@ interface ContentItem {
 type SaveState = "idle" | "saving" | "saved"
 type PathPart = string | number
 
+const PAGE_GROUPS = [
+  {
+    id: "home",
+    label: "Home Page",
+    previewPath: "/",
+    items: [
+      ["homepage", "hero"],
+      ["homepage", "about"],
+      ["homepage", "events"],
+      ["homepage", "gallery"],
+      ["homepage", "membership"],
+      ["homepage", "contact"],
+    ],
+  },
+  {
+    id: "about",
+    label: "About Page",
+    previewPath: "/about",
+    items: [["aboutPage", "main"]],
+  },
+  {
+    id: "membership",
+    label: "Membership Page",
+    previewPath: "/membership",
+    items: [["membershipPage", "main"]],
+  },
+  {
+    id: "contact",
+    label: "Contact Page",
+    previewPath: "/contact",
+    items: [
+      ["contactPage", "main"],
+      ["global", "contact"],
+    ],
+  },
+  {
+    id: "gallery",
+    label: "Gallery Page",
+    previewPath: "/gallery",
+    items: [
+      ["galleryPage", "main"],
+      ["homepage", "gallery"],
+    ],
+  },
+  {
+    id: "board",
+    label: "Board Page",
+    previewPath: "/board",
+    items: [["boardPage", "main"]],
+  },
+  {
+    id: "memoriam",
+    label: "In Memoriam",
+    previewPath: "/memoriam",
+    items: [["memoriamPage", "main"]],
+  },
+  {
+    id: "global",
+    label: "Site Settings",
+    previewPath: "/",
+    items: [
+      ["site", "seo"],
+      ["global", "identity"],
+      ["global", "contact"],
+    ],
+  },
+] satisfies Array<{
+  id: string
+  label: string
+  previewPath: string
+  items: Array<[string, string]>
+}>
+
 export default function AdminContentPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [saveState, setSaveState] = useState<Record<string, SaveState>>({})
   const [drafts, setDrafts] = useState<SiteContentMap>(defaultSiteContent)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [activePageId, setActivePageId] = useState(PAGE_GROUPS[0].id)
+  const [previewVersion, setPreviewVersion] = useState(0)
+  const [pageSaveState, setPageSaveState] = useState<SaveState>("idle")
+  const previewFrame = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
     fetchContent()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (loading) return
+
+    window.localStorage.setItem("fab-site-content-preview", JSON.stringify(drafts))
+    previewFrame.current?.contentWindow?.postMessage(
+      { type: "cms-preview-content", content: drafts },
+      window.location.origin
+    )
+  }, [drafts, loading])
 
   async function fetchContent() {
     setLoading(true)
@@ -41,31 +127,6 @@ export default function AdminContentPage() {
 
     setDrafts(mergeSiteContent(remote))
     setLoading(false)
-  }
-
-  async function save(section: string, key: string) {
-    const stateKey = `${section}:${key}`
-    const value = drafts[section]?.[key]
-
-    if (!isPlainObject(value)) {
-      setErrors((current) => ({ ...current, [stateKey]: "This content section is not valid." }))
-      return
-    }
-
-    setErrors((current) => ({ ...current, [stateKey]: "" }))
-    setSaveState((s) => ({ ...s, [stateKey]: "saving" }))
-    const { error } = await supabase
-      .from("site_content")
-      .upsert({ section, key, value, updated_at: new Date().toISOString() }, { onConflict: "section,key" })
-
-    if (error) {
-      setErrors((current) => ({ ...current, [stateKey]: error.message }))
-      setSaveState((s) => ({ ...s, [stateKey]: "idle" }))
-      return
-    }
-
-    setSaveState((s) => ({ ...s, [stateKey]: "saved" }))
-    setTimeout(() => setSaveState((s) => ({ ...s, [stateKey]: "idle" })), 3000)
   }
 
   function updateValue(section: string, key: string, path: PathPart[], value: unknown) {
@@ -86,54 +147,165 @@ export default function AdminContentPage() {
     )
   }
 
+  const activePage = PAGE_GROUPS.find((page) => page.id === activePageId) ?? PAGE_GROUPS[0]
+  const editableItems = activePage.items
+    .map(([section, key]) => ({
+      section,
+      key,
+      value: drafts[section]?.[key],
+    }))
+    .filter((item): item is { section: string; key: string; value: Record<string, unknown> } =>
+      isPlainObject(item.value)
+    )
+  const previewUrl = previewSrc(activePage.previewPath, previewVersion)
+
+  async function saveActivePage() {
+    const rows = editableItems.map(({ section, key, value }) => ({
+      section,
+      key,
+      value,
+      updated_at: new Date().toISOString(),
+    }))
+
+    const invalid = rows.find((row) => !isPlainObject(row.value))
+    if (invalid) {
+      setErrors((current) => ({
+        ...current,
+        [contentId(invalid.section, invalid.key)]: "This content section is not valid.",
+      }))
+      return
+    }
+
+    setPageSaveState("saving")
+    setErrors((current) => {
+      const next = { ...current }
+      rows.forEach((row) => {
+        next[contentId(row.section, row.key)] = ""
+      })
+      return next
+    })
+
+    const { error } = await supabase
+      .from("site_content")
+      .upsert(rows, { onConflict: "section,key" })
+
+    if (error) {
+      setErrors((current) => ({
+        ...current,
+        [contentId(activePage.id, "save")]: error.message,
+      }))
+      setPageSaveState("idle")
+      return
+    }
+
+    setPageSaveState("saved")
+    setPreviewVersion((version) => version + 1)
+    setTimeout(() => setPageSaveState("idle"), 3000)
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b border-border bg-card">
-        <div className="mx-auto max-w-3xl px-6 py-6">
+        <div className="mx-auto max-w-7xl px-6 py-6">
           <h1 className="text-2xl font-bold text-foreground">Site Content</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Edit the public website text using simple fields. Lists can be edited one item at a time.
-            Events, gallery photos, board members, and memorial entries still have their own Admin pages.
+            Choose a page, edit the fields, and preview the live website beside your changes.
+            Save once when you are ready to publish the page changes.
           </p>
         </div>
       </div>
 
-      <div className="mx-auto max-w-3xl px-6 py-10 space-y-10">
-        {Object.entries(drafts).map(([section, entries]) => (
-          <div key={section} className="space-y-6">
+      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-8 xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.05fr)]">
+        <aside className="space-y-6">
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <h2 className="text-sm font-semibold text-foreground">Pages</h2>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+              {PAGE_GROUPS.map((page) => (
+                <button
+                  key={page.id}
+                  type="button"
+                  onClick={() => setActivePageId(page.id)}
+                  className={`rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                    activePage.id === page.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {page.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-semibold capitalize text-foreground">{sectionLabel(section)}</h2>
+              <h2 className="text-xl font-semibold text-foreground">{activePage.label}</h2>
               <p className="text-sm text-muted-foreground">
-                These fields update the matching public site sections.
+                Edit the content sections used on this page. The preview updates while you type.
               </p>
             </div>
+            <div className="sticky top-4 z-10 rounded-xl border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Save all changes for {activePage.label}.
+                </p>
+                <SaveButton
+                  state={pageSaveState}
+                  onClick={saveActivePage}
+                  label="Save Page Changes"
+                />
+              </div>
+              {errors[contentId(activePage.id, "save")] && (
+                <p className="mt-2 flex items-center gap-1.5 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4" /> {errors[contentId(activePage.id, "save")]}
+                </p>
+              )}
+            </div>
 
-            {Object.entries(entries).map(([key, value]) => {
-              const stateKey = contentId(section, key)
-              return (
-                <Section
-                  key={stateKey}
-                  title={sectionLabel(key)}
-                  description={sectionDescription(section, key)}
-                >
-                  <ObjectFields
-                    value={value}
-                    onChange={(path, nextValue) => updateValue(section, key, path, nextValue)}
-                  />
-                  {errors[stateKey] && (
-                    <p className="flex items-center gap-1.5 text-sm text-destructive">
-                      <AlertCircle className="h-4 w-4" /> {errors[stateKey]}
-                    </p>
-                  )}
-                  <SaveButton
-                    state={saveState[stateKey] ?? "idle"}
-                    onClick={() => save(section, key)}
-                  />
-                </Section>
-              )
-            })}
+            {editableItems.map(({ section, key, value }) => {
+                const stateKey = contentId(section, key)
+                return (
+                  <Section
+                    key={stateKey}
+                    title={sectionLabel(key)}
+                    description={sectionDescription(section, key)}
+                  >
+                    <ObjectFields
+                      value={value}
+                      onChange={(path, nextValue) => updateValue(section, key, path, nextValue)}
+                    />
+                    {errors[stateKey] && (
+                      <p className="flex items-center gap-1.5 text-sm text-destructive">
+                        <AlertCircle className="h-4 w-4" /> {errors[stateKey]}
+                      </p>
+                    )}
+                  </Section>
+                )
+              })}
           </div>
-        ))}
+        </aside>
+
+        <section className="sticky top-6 hidden h-[calc(100vh-3rem)] overflow-hidden rounded-2xl border border-border bg-card shadow-sm xl:block">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Live Preview</h2>
+              <p className="text-xs text-muted-foreground">{activePage.previewPath}</p>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <a href={activePage.previewPath} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                Open
+              </a>
+            </Button>
+          </div>
+          <iframe
+            ref={previewFrame}
+            key={previewUrl}
+            title={`${activePage.label} preview`}
+            src={previewUrl}
+            className="h-full w-full bg-background"
+          />
+        </section>
       </div>
     </div>
   )
@@ -346,6 +518,12 @@ function contentId(section: string, key: string) {
   return `${section}:${key}`
 }
 
+function previewSrc(path: string, version: number) {
+  const [pathname, hash = ""] = path.split("#")
+  const separator = pathname.includes("?") ? "&" : "?"
+  return `${pathname}${separator}cmsPreview=1&cmsPreviewVersion=${version}${hash ? `#${hash}` : ""}`
+}
+
 function sectionLabel(value: string) {
   return value
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -454,14 +632,22 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function SaveButton({ state, onClick }: { state: SaveState; onClick: () => void }) {
+function SaveButton({
+  state,
+  onClick,
+  label = "Save Changes",
+}: {
+  state: SaveState
+  onClick: () => void
+  label?: string
+}) {
   return (
     <div className="flex items-center gap-3 pt-2">
       <Button onClick={onClick} disabled={state === "saving"} size="sm">
         {state === "saving" ? (
           <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Saving…</>
         ) : (
-          <><Save className="mr-2 h-3.5 w-3.5" /> Save Changes</>
+          <><Save className="mr-2 h-3.5 w-3.5" /> {label}</>
         )}
       </Button>
       {state === "saved" && (
