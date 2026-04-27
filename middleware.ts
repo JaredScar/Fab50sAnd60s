@@ -1,5 +1,11 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextRequest, NextResponse } from "next/server"
+import {
+  ADMIN_ROUTE_PERMISSIONS,
+  defaultPermissionsForRole,
+  hasAdminPermission,
+  normalizeAdminPermissions,
+} from "@/lib/admin-permissions"
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -49,7 +55,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  const role = user.app_metadata?.role as string | undefined
+  let role = user.app_metadata?.role as string | undefined
+  let permissions = user.app_metadata?.admin_permissions
+
+  if (!role) {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    role = data?.role as string | undefined
+    permissions = normalizeAdminPermissions(permissions) ?? defaultPermissionsForRole(role)
+  }
 
   if (!role) {
     const loginUrl = request.nextUrl.clone()
@@ -60,6 +78,19 @@ export async function middleware(request: NextRequest) {
 
   // Only super_admin may access /admin/users
   if (pathname.startsWith("/admin/users") && role !== "super_admin") {
+    const dashboardUrl = request.nextUrl.clone()
+    dashboardUrl.pathname = "/admin"
+    dashboardUrl.search = ""
+    return NextResponse.redirect(dashboardUrl)
+  }
+
+  const routePermission = ADMIN_ROUTE_PERMISSIONS.find(({ prefix }) =>
+    pathname.startsWith(prefix)
+  )
+  if (
+    routePermission &&
+    !hasAdminPermission(role, permissions, routePermission.permission)
+  ) {
     const dashboardUrl = request.nextUrl.clone()
     dashboardUrl.pathname = "/admin"
     dashboardUrl.search = ""

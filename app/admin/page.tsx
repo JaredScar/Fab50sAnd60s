@@ -10,6 +10,7 @@ import {
   ArrowRight,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { type AdminPermission, hasAdminPermission } from "@/lib/admin-permissions"
 
 export default async function AdminDashboard() {
   const supabase = await createClient()
@@ -18,6 +19,7 @@ export default async function AdminDashboard() {
   } = await supabase.auth.getUser()
 
   const role = user?.app_metadata?.role as string
+  const permissions = user?.app_metadata?.admin_permissions
   const name =
     (user?.user_metadata?.full_name as string) ||
     (user?.user_metadata?.name as string) ||
@@ -32,7 +34,15 @@ export default async function AdminDashboard() {
       supabase.from("memoriam_entries").select("*", { count: "exact", head: true }),
     ])
 
-  const cards = [
+  const cards: Array<{
+    href: string
+    label: string
+    description: string
+    icon: typeof ImageIcon
+    count: number | null
+    unit: string
+    permission: AdminPermission
+  }> = [
     {
       href: "/admin/gallery",
       label: "Gallery",
@@ -40,6 +50,7 @@ export default async function AdminDashboard() {
       icon: ImageIcon,
       count: galleryCount ?? 0,
       unit: "photo",
+      permission: "gallery",
     },
     {
       href: "/admin/events",
@@ -48,6 +59,7 @@ export default async function AdminDashboard() {
       icon: CalendarDays,
       count: eventsCount ?? 0,
       unit: "event",
+      permission: "events",
     },
     {
       href: "/admin/board",
@@ -56,6 +68,7 @@ export default async function AdminDashboard() {
       icon: Users,
       count: boardCount ?? 0,
       unit: "member",
+      permission: "board",
     },
     {
       href: "/admin/memoriam",
@@ -64,6 +77,7 @@ export default async function AdminDashboard() {
       icon: Heart,
       count: memoriamCount ?? 0,
       unit: "entry",
+      permission: "memoriam",
     },
     {
       href: "/admin/content",
@@ -72,6 +86,7 @@ export default async function AdminDashboard() {
       icon: FileText,
       count: null,
       unit: "",
+      permission: "content",
     },
     ...(role === "super_admin"
       ? [
@@ -82,6 +97,7 @@ export default async function AdminDashboard() {
             icon: ShieldCheck,
             count: null,
             unit: "",
+            permission: "users" as AdminPermission,
           },
         ]
       : []),
@@ -119,7 +135,9 @@ export default async function AdminDashboard() {
         Content Management
       </h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map(({ href, label, description, icon: Icon, count, unit }) => (
+        {cards
+          .filter((card) => hasAdminPermission(role, permissions, card.permission))
+          .map(({ href, label, description, icon: Icon, count, unit }) => (
           <Link key={href} href={href}>
             <Card className="h-full hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer">
               <CardContent className="p-5">

@@ -19,12 +19,17 @@ import {
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  type AdminPermission,
+  hasAdminPermission,
+} from "@/lib/admin-permissions"
 
 interface AdminUser {
   name: string
   email: string
   role: string
   avatar?: string
+  permissions?: AdminPermission[]
 }
 
 interface Props {
@@ -33,11 +38,11 @@ interface Props {
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/admin/gallery", label: "Gallery", icon: ImageIcon },
-  { href: "/admin/events", label: "Events", icon: CalendarDays },
-  { href: "/admin/board", label: "Board Members", icon: Users },
-  { href: "/admin/memoriam", label: "In Memoriam", icon: Heart },
-  { href: "/admin/content", label: "Site Content", icon: FileText },
+  { href: "/admin/gallery", label: "Gallery", icon: ImageIcon, permission: "gallery" },
+  { href: "/admin/events", label: "Events", icon: CalendarDays, permission: "events" },
+  { href: "/admin/board", label: "Board Members", icon: Users, permission: "board" },
+  { href: "/admin/memoriam", label: "In Memoriam", icon: Heart, permission: "memoriam" },
+  { href: "/admin/content", label: "Site Content", icon: FileText, permission: "content" },
 ]
 
 const ROLE_LABELS: Record<string, string> = {
@@ -84,24 +89,29 @@ export function AdminSidebar({ user }: Props) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {navItems.map(({ href, label, icon: Icon, exact }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors group",
-              isActive(href, exact)
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="flex-1">{label}</span>
-            {isActive(href, exact) && (
-              <ChevronRight className="h-3.5 w-3.5 opacity-60" />
-            )}
-          </Link>
-        ))}
+        {navItems
+          .filter((item) =>
+            !item.permission ||
+            hasAdminPermission(user.role, user.permissions, item.permission as AdminPermission)
+          )
+          .map(({ href, label, icon: Icon, exact }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors group",
+                isActive(href, exact)
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{label}</span>
+              {isActive(href, exact) && (
+                <ChevronRight className="h-3.5 w-3.5 opacity-60" />
+              )}
+            </Link>
+          ))}
 
         {/* Super admin only */}
         {user.role === "super_admin" && (

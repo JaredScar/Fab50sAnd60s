@@ -10,8 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, ShieldCheck, UserX, RefreshCw } from "lucide-react"
+import { Loader2, ShieldCheck, UserX, RefreshCw, UserPlus } from "lucide-react"
 import { format } from "date-fns"
+import {
+  ADMIN_PERMISSION_DESCRIPTIONS,
+  ADMIN_PERMISSION_LABELS,
+  ADMIN_PERMISSIONS,
+  type AdminPermission,
+  defaultPermissionsForRole,
+} from "@/lib/admin-permissions"
 
 interface AdminUser {
   id: string
@@ -19,6 +26,7 @@ interface AdminUser {
   name: string | null
   avatar: string | null
   role: string | null
+  permissions: AdminPermission[]
   lastSignIn: string | null
   createdAt: string
 }
@@ -39,6 +47,10 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [newEmail, setNewEmail] = useState("")
+  const [newRole, setNewRole] = useState("editor")
+  const [newPermissions, setNewPermissions] = useState<AdminPermission[]>(defaultPermissionsForRole("editor"))
+  const [inviteError, setInviteError] = useState("")
 
   useEffect(() => {
     fetchUsers()
@@ -54,11 +66,37 @@ export default function AdminUsersPage() {
   }
 
   async function handleRoleChange(userId: string, role: string) {
+    const user = users.find((u) => u.id === userId)
     setUpdating(userId)
     await fetch("/api/admin/users", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role }),
+      body: JSON.stringify({
+        userId,
+        role,
+        permissions: user?.role ? user.permissions : defaultPermissionsForRole(role),
+      }),
+    })
+    setUpdating(null)
+    fetchUsers()
+  }
+
+  async function handlePermissionToggle(
+    user: AdminUser,
+    permission: AdminPermission,
+    enabled: boolean
+  ) {
+    if (!user.role) return
+
+    const permissions = enabled
+      ? Array.from(new Set([...user.permissions, permission]))
+      : user.permissions.filter((item) => item !== permission)
+
+    setUpdating(user.id)
+    await fetch("/api/admin/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, role: user.role, permissions }),
     })
     setUpdating(null)
     fetchUsers()
@@ -74,6 +112,47 @@ export default function AdminUsersPage() {
     })
     setUpdating(null)
     fetchUsers()
+  }
+
+  async function handlePreApproveUser() {
+    setInviteError("")
+    setUpdating("new-user")
+
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: newEmail,
+        role: newRole,
+        permissions: newPermissions,
+      }),
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "Unable to add user." }))
+      setInviteError(body.error ?? "Unable to add user.")
+      setUpdating(null)
+      return
+    }
+
+    setNewEmail("")
+    setNewRole("editor")
+    setNewPermissions(defaultPermissionsForRole("editor"))
+    setUpdating(null)
+    fetchUsers()
+  }
+
+  function handleNewRoleChange(role: string) {
+    setNewRole(role)
+    setNewPermissions(defaultPermissionsForRole(role).filter((permission) => permission !== "users"))
+  }
+
+  function toggleNewPermission(permission: AdminPermission, enabled: boolean) {
+    setNewPermissions((current) =>
+      enabled
+        ? Array.from(new Set([...current, permission]))
+        : current.filter((item) => item !== permission)
+    )
   }
 
   const approvedUsers = users.filter((u) => u.role)
@@ -107,8 +186,8 @@ export default function AdminUsersPage() {
             <div className="grid gap-4 sm:grid-cols-3">
               {[
                 { role: "super_admin", label: "Super Admin", desc: "Full access including user management" },
-                { role: "admin", label: "Admin", desc: "Full CMS access — create, edit, delete all content" },
-                { role: "editor", label: "Editor", desc: "Can edit content but cannot delete or manage users" },
+                { role: "admin", label: "Admin", desc: "Can create/delete in the tabs they are allowed to access" },
+                { role: "editor", label: "Editor", desc: "Can edit in allowed tabs but cannot delete or manage users" },
               ].map(({ role, label, desc }) => (
                 <div key={role} className="rounded-xl border border-border bg-card p-4">
                   <Badge variant="outline" className={ROLE_COLORS[role]}>{label}</Badge>
@@ -116,6 +195,94 @@ export default function AdminUsersPage() {
                 </div>
               ))}
             </div>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <UserPlus className="h-5 w-5 text-primary" />
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">Pre-Approve Gmail User</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Add someone before they sign in. Their role and tab access will be ready the next time they use Google login.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1fr_12rem]">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">Gmail address</label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(event) => setNewEmail(event.target.value)}
+                    placeholder="member@gmail.com"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground">Role</label>
+                  <Select value={newRole} onValueChange={handleNewRoleChange}>
+                    <SelectTrigger className="h-10 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Allowed admin tabs
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {ADMIN_PERMISSIONS.filter((permission) => permission !== "users").map((permission) => (
+                    <label
+                      key={permission}
+                      className="flex items-start gap-2 rounded-lg border border-border bg-background/50 p-3 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={newRole === "super_admin" || newPermissions.includes(permission)}
+                        disabled={newRole === "super_admin"}
+                        onChange={(event) => toggleNewPermission(permission, event.target.checked)}
+                      />
+                      <span>
+                        <span className="block font-medium text-foreground">
+                          {ADMIN_PERMISSION_LABELS[permission]}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {ADMIN_PERMISSION_DESCRIPTIONS[permission]}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {inviteError && <p className="mt-3 text-sm text-destructive">{inviteError}</p>}
+
+              <div className="mt-5">
+                <Button
+                  onClick={handlePreApproveUser}
+                  disabled={updating === "new-user" || !newEmail.trim()}
+                  className="gap-2"
+                >
+                  {updating === "new-user" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="h-4 w-4" />
+                  )}
+                  Add User Access
+                </Button>
+              </div>
+            </section>
 
             {/* Approved admins */}
             <section>
@@ -133,66 +300,105 @@ export default function AdminUsersPage() {
                   {approvedUsers.map((user) => (
                     <div
                       key={user.id}
-                      className="flex items-center gap-4 rounded-xl border border-border bg-card p-4"
+                      className="rounded-xl border border-border bg-card p-4"
                     >
-                      {/* Avatar */}
-                      {user.avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={user.avatar} alt={user.name ?? ""} className="h-10 w-10 rounded-full object-cover shrink-0" />
-                      ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground shrink-0">
-                          {(user.name ?? user.email ?? "?").charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-4">
+                        {/* Avatar */}
+                        {user.avatar ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={user.avatar} alt={user.name ?? ""} className="h-10 w-10 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-bold text-foreground shrink-0">
+                            {(user.name ?? user.email ?? "?").charAt(0).toUpperCase()}
+                          </div>
+                        )}
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground text-sm">
-                          {user.name ?? <span className="text-muted-foreground italic">No name</span>}
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground text-sm">
+                            {user.name ?? <span className="text-muted-foreground italic">No name</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                          {user.lastSignIn && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Last sign-in: {format(new Date(user.lastSignIn), "MMM d, yyyy")}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Role selector */}
+                        <div className="shrink-0 w-40">
+                          <Select
+                            value={user.role ?? ""}
+                            onValueChange={(v) => handleRoleChange(user.id, v)}
+                            disabled={updating === user.id}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLE_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value} className="text-xs">
+                                  {o.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Revoke */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 hover:text-destructive hover:bg-destructive/5"
+                          onClick={() => handleRevokeAccess(user)}
+                          disabled={updating === user.id}
+                          title="Revoke access"
+                        >
+                          {updating === user.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <UserX className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="mt-4 border-t border-border pt-4">
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Allowed admin tabs
                         </p>
-                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                        {user.lastSignIn && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Last sign-in: {format(new Date(user.lastSignIn), "MMM d, yyyy")}
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {ADMIN_PERMISSIONS.filter((permission) => permission !== "users").map((permission) => (
+                            <label
+                              key={permission}
+                              className="flex items-start gap-2 rounded-lg border border-border bg-background/50 p-3 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                className="mt-1"
+                                checked={user.role === "super_admin" || user.permissions.includes(permission)}
+                                disabled={user.role === "super_admin" || updating === user.id}
+                                onChange={(event) =>
+                                  handlePermissionToggle(user, permission, event.target.checked)
+                                }
+                              />
+                              <span>
+                                <span className="block font-medium text-foreground">
+                                  {ADMIN_PERMISSION_LABELS[permission]}
+                                </span>
+                                <span className="block text-xs text-muted-foreground">
+                                  {ADMIN_PERMISSION_DESCRIPTIONS[permission]}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        {user.role === "super_admin" && (
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            Super admins always have access to every tab, including Users & Access.
                           </p>
                         )}
                       </div>
-
-                      {/* Role selector */}
-                      <div className="shrink-0 w-40">
-                        <Select
-                          value={user.role ?? ""}
-                          onValueChange={(v) => handleRoleChange(user.id, v)}
-                          disabled={updating === user.id}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ROLE_OPTIONS.map((o) => (
-                              <SelectItem key={o.value} value={o.value} className="text-xs">
-                                {o.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Revoke */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0 hover:text-destructive hover:bg-destructive/5"
-                        onClick={() => handleRevokeAccess(user)}
-                        disabled={updating === user.id}
-                        title="Revoke access"
-                      >
-                        {updating === user.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <UserX className="h-4 w-4" />
-                        )}
-                      </Button>
                     </div>
                   ))}
                 </div>

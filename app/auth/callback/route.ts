@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
+import { createServiceClient } from "@/lib/supabase/server"
+import {
+  defaultPermissionsForRole,
+  normalizeAdminPermissions,
+} from "@/lib/admin-permissions"
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
@@ -26,8 +31,29 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      const user = data.user
+      if (user && !user.app_metadata?.role) {
+        const service = await createServiceClient()
+        const { data: roleRow } = await service
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .maybeSingle()
+
+        const role = roleRow?.role as string | undefined
+        if (role) {
+          await service.auth.admin.updateUserById(user.id, {
+            app_metadata: {
+              role,
+              admin_permissions:
+                normalizeAdminPermissions(user.app_metadata?.admin_permissions) ??
+                defaultPermissionsForRole(role),
+            },
+          })
+        }
+      }
       return NextResponse.redirect(`${origin}${next}`)
     }
   }

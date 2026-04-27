@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { AdminSidebar } from "@/components/admin/sidebar"
+import { resolveAdminAccess } from "@/lib/admin-auth"
 
 export const metadata = { title: "Admin — Fab 50s & 60s Car Club" }
 
@@ -18,6 +19,8 @@ export default async function AdminLayout({
     return <>{children}</>
   }
 
+  const access = await resolveAdminAccess(user)
+
   const adminUser = {
     name:
       (user.user_metadata?.full_name as string) ||
@@ -25,8 +28,9 @@ export default async function AdminLayout({
       user.email?.split("@")[0] ||
       "Admin",
     email: user.email ?? "",
-    role: (user.app_metadata?.role as string) ?? "",
+    role: access.role ?? "",
     avatar: (user.user_metadata?.avatar_url as string) || undefined,
+    permissions: access.permissions,
   }
 
   return (
