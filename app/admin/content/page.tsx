@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { defaultSiteContent, mergeSiteContent, type SiteContentMap } from "@/lib/site-content-defaults"
 import { Loader2, Save, CheckCircle, FileText, Plus, Trash2, AlertCircle, ExternalLink } from "lucide-react"
 
@@ -14,6 +20,14 @@ interface ContentItem {
 
 type SaveState = "idle" | "saving" | "saved"
 type PathPart = string | number
+
+interface InlineEditTarget {
+  section: string
+  key: string
+  path: PathPart[]
+  label: string
+  value: string
+}
 
 const PAGE_GROUPS = [
   {
@@ -94,9 +108,9 @@ export default function AdminContentPage() {
   const [drafts, setDrafts] = useState<SiteContentMap>(defaultSiteContent)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [activePageId, setActivePageId] = useState(PAGE_GROUPS[0].id)
-  const [activeContentId, setActiveContentId] = useState("")
   const [previewVersion, setPreviewVersion] = useState(0)
   const [pageSaveState, setPageSaveState] = useState<SaveState>("idle")
+  const [inlineEdit, setInlineEdit] = useState<InlineEditTarget | null>(null)
   const previewFrame = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
@@ -113,6 +127,12 @@ export default function AdminContentPage() {
       window.location.origin
     )
   }, [drafts, loading])
+
+  useEffect(() => {
+    if (loading) return
+    enableInlinePreviewEditing()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePageId, drafts, loading, previewVersion])
 
   async function fetchContent() {
     setLoading(true)
@@ -140,6 +160,47 @@ export default function AdminContentPage() {
     })
   }
 
+  function enableInlinePreviewEditing() {
+    const doc = previewFrame.current?.contentDocument
+    if (!doc) return
+
+    const targetMap = buildInlineTargetMap(drafts, activePage.items)
+    const elements = Array.from(
+      doc.querySelectorAll<HTMLElement>("h1,h2,h3,h4,p,a,button,span,li")
+    )
+
+    elements.forEach((element) => {
+      element.removeAttribute("data-cms-editable")
+      element.style.cursor = ""
+      element.style.outline = ""
+      element.style.outlineOffset = ""
+      element.title = ""
+      element.onclick = null
+
+      const text = normalizePreviewText(element.textContent ?? "")
+      const target = targetMap.get(text)
+      if (!target) return
+
+      element.setAttribute("data-cms-editable", "true")
+      element.style.cursor = "text"
+      element.style.outline = "2px dashed rgba(0, 137, 137, 0.35)"
+      element.style.outlineOffset = "3px"
+      element.title = "Click to edit this text"
+      element.onclick = (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        setInlineEdit(target)
+      }
+    })
+  }
+
+  function saveInlineEdit(value: string) {
+    if (!inlineEdit) return
+
+    updateValue(inlineEdit.section, inlineEdit.key, inlineEdit.path, value)
+    setInlineEdit(null)
+  }
+
   const activePage = PAGE_GROUPS.find((page) => page.id === activePageId) ?? PAGE_GROUPS[0]
   const editableItems = activePage.items
     .map(([section, key]) => ({
@@ -150,16 +211,7 @@ export default function AdminContentPage() {
     .filter((item): item is { section: string; key: string; value: Record<string, unknown> } =>
       isPlainObject(item.value)
     )
-  const activeItem = editableItems.find((item) => contentId(item.section, item.key) === activeContentId) ?? editableItems[0]
   const previewUrl = previewSrc(activePage.previewPath, previewVersion)
-
-  useEffect(() => {
-    if (loading) return
-    const ids = editableItems.map((item) => contentId(item.section, item.key))
-    if (!ids.includes(activeContentId)) {
-      setActiveContentId(ids[0] ?? "")
-    }
-  }, [activeContentId, activePageId, drafts, editableItems, loading])
 
   if (loading) {
     return (
@@ -214,125 +266,102 @@ export default function AdminContentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <div className="border-b border-border bg-card">
-        <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6">
-          <h1 className="text-2xl font-bold text-foreground">Site Content</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Choose a page, edit the fields, and preview the live website beside your changes.
-            Save once when you are ready to publish the page changes.
-          </p>
-        </div>
-      </div>
+        <div className="px-3 py-3 sm:px-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-foreground">Site Content</h1>
+              <p className="text-sm text-muted-foreground">
+                Click highlighted text in the preview to edit it. Save once when you are ready to publish.
+              </p>
+            </div>
 
-      <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6">
-        <div className="mb-4 overflow-x-auto rounded-xl border border-border bg-card p-2">
-          <div className="flex min-w-max gap-2">
-            {PAGE_GROUPS.map((page) => (
-              <button
-                key={page.id}
-                type="button"
-                onClick={() => setActivePageId(page.id)}
-                className={`rounded-lg px-3 py-2 text-sm transition-colors ${
-                  activePage.id === page.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                {page.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(560px,1.1fr)]">
-          <aside className="space-y-4">
-            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">{activePage.label}</h2>
-                <p className="text-sm text-muted-foreground">
-                  Pick a section to edit. The preview updates while you type.
-                </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="max-w-full overflow-x-auto rounded-lg border border-border bg-background p-1">
+                <div className="flex min-w-max gap-1">
+                  {PAGE_GROUPS.map((page) => (
+                    <button
+                      key={page.id}
+                      type="button"
+                      onClick={() => setActivePageId(page.id)}
+                      className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                        activePage.id === page.id
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      {page.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
               <SaveButton
                 state={pageSaveState}
                 onClick={saveActivePage}
                 label="Save Page Changes"
               />
+              <Button asChild variant="outline" size="sm">
+                <a href={activePage.previewPath} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                  Open
+                </a>
+              </Button>
             </div>
-
-            {editableItems.length > 1 && (
-              <div className="overflow-x-auto rounded-xl border border-border bg-card p-2">
-                <div className="flex min-w-max gap-2">
-                  {editableItems.map(({ section, key }) => {
-                    const stateKey = contentId(section, key)
-                    return (
-                      <button
-                        key={stateKey}
-                        type="button"
-                        onClick={() => setActiveContentId(stateKey)}
-                        className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-                          stateKey === contentId(activeItem.section, activeItem.key)
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                        }`}
-                      >
-                        {sectionLabel(key)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {errors[contentId(activePage.id, "save")] && (
-              <p className="flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                <AlertCircle className="h-4 w-4" /> {errors[contentId(activePage.id, "save")]}
-              </p>
-            )}
-
-            {activeItem && (
-              <Section
-                key={contentId(activeItem.section, activeItem.key)}
-                title={sectionLabel(activeItem.key)}
-                description={sectionDescription(activeItem.section, activeItem.key)}
-              >
-                <ObjectFields
-                  value={activeItem.value}
-                  onChange={(path, nextValue) => updateValue(activeItem.section, activeItem.key, path, nextValue)}
-                />
-                {errors[contentId(activeItem.section, activeItem.key)] && (
-                  <p className="flex items-center gap-1.5 text-sm text-destructive">
-                    <AlertCircle className="h-4 w-4" /> {errors[contentId(activeItem.section, activeItem.key)]}
-                  </p>
-                )}
-              </Section>
-            )}
-          </aside>
-
-        <section className="sticky top-4 hidden h-[calc(100vh-2rem)] overflow-hidden rounded-xl border border-border bg-card shadow-sm xl:block">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Live Preview</h2>
-              <p className="text-xs text-muted-foreground">{activePage.previewPath}</p>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <a href={activePage.previewPath} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                Open
-              </a>
-            </Button>
           </div>
-          <iframe
-            ref={previewFrame}
-            key={previewUrl}
-            title={`${activePage.label} preview`}
-            src={previewUrl}
-            className="h-full w-full bg-background"
-          />
-        </section>
         </div>
       </div>
+
+      {errors[contentId(activePage.id, "save")] && (
+        <p className="mx-3 mt-3 flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive sm:mx-4">
+          <AlertCircle className="h-4 w-4" /> {errors[contentId(activePage.id, "save")]}
+        </p>
+      )}
+
+      <section className="min-h-0 flex-1 overflow-hidden bg-card">
+        <iframe
+          ref={previewFrame}
+          key={previewUrl}
+          title={`${activePage.label} preview`}
+          src={previewUrl}
+          onLoad={enableInlinePreviewEditing}
+          className="h-full min-h-[calc(100vh-5.5rem)] w-full bg-background"
+        />
+      </section>
+
+      <Dialog open={Boolean(inlineEdit)} onOpenChange={(open) => !open && setInlineEdit(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Preview Text</DialogTitle>
+          </DialogHeader>
+          {inlineEdit && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Editing {inlineEdit.label}. Save page changes when you are ready to publish.
+              </p>
+              <textarea
+                className={`${inputCls} min-h-36 resize-y leading-relaxed`}
+                value={inlineEdit.value}
+                onChange={(event) =>
+                  setInlineEdit((current) =>
+                    current ? { ...current, value: event.target.value } : current
+                  )
+                }
+                autoFocus
+              />
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setInlineEdit(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => saveInlineEdit(inlineEdit.value)}>
+                  Update Preview
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -548,6 +577,63 @@ function previewSrc(path: string, version: number) {
   const [pathname, hash = ""] = path.split("#")
   const separator = pathname.includes("?") ? "&" : "?"
   return `${pathname}${separator}cmsPreview=1&cmsPreviewVersion=${version}${hash ? `#${hash}` : ""}`
+}
+
+function buildInlineTargetMap(content: SiteContentMap, items: Array<[string, string]>) {
+  const refs: InlineEditTarget[] = []
+
+  items.forEach(([section, key]) => {
+    const value = content[section]?.[key]
+    collectStringRefs(value, [], section, key, refs)
+  })
+
+  const grouped = new Map<string, InlineEditTarget[]>()
+  refs.forEach((ref) => {
+    const normalized = normalizePreviewText(ref.value)
+    if (normalized.length < 3) return
+    grouped.set(normalized, [...(grouped.get(normalized) ?? []), ref])
+  })
+
+  const unique = new Map<string, InlineEditTarget>()
+  grouped.forEach((matches, text) => {
+    if (matches.length === 1) unique.set(text, matches[0])
+  })
+
+  return unique
+}
+
+function collectStringRefs(
+  value: unknown,
+  path: PathPart[],
+  section: string,
+  key: string,
+  refs: InlineEditTarget[]
+) {
+  if (typeof value === "string") {
+    refs.push({
+      section,
+      key,
+      path,
+      value,
+      label: `${sectionLabel(key)} / ${path.map(String).map(sectionLabel).join(" / ")}`,
+    })
+    return
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectStringRefs(item, [...path, index], section, key, refs))
+    return
+  }
+
+  if (isPlainObject(value)) {
+    Object.entries(value).forEach(([fieldKey, fieldValue]) => {
+      collectStringRefs(fieldValue, [...path, fieldKey], section, key, refs)
+    })
+  }
+}
+
+function normalizePreviewText(value: string) {
+  return value.replace(/\s+/g, " ").trim()
 }
 
 function sectionLabel(value: string) {
