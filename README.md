@@ -34,6 +34,26 @@ This website helps share:
 - CMS pages for managing gallery photos, events, board members, memorial entries, and site text
 - Privilege access management with `super_admin`, `admin`, and `editor` roles
 
+## Admin Portal Screenshots
+
+The admin portal gives approved club administrators a simple CMS for managing the site.
+
+| Dashboard | Gallery |
+| --- | --- |
+| ![Admin dashboard showing content management cards](docs/admin-screenshots/admin-dashboard.png) | ![Admin gallery management screen](docs/admin-screenshots/admin-gallery.png) |
+
+| Events | Board Members |
+| --- | --- |
+| ![Admin events management screen](docs/admin-screenshots/admin-events.png) | ![Admin board members management screen](docs/admin-screenshots/admin-board.png) |
+
+| In Memoriam | Site Content |
+| --- | --- |
+| ![Admin in memoriam management screen](docs/admin-screenshots/admin-memoriam.png) | ![Admin site content live preview editor](docs/admin-screenshots/admin-site-content.png) |
+
+| Users & Access |
+| --- |
+| ![Admin users and access management screen](docs/admin-screenshots/admin-users.png) |
+
 ## Tech Stack
 
 - Next.js App Router
