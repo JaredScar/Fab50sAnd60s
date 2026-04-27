@@ -94,6 +94,7 @@ export default function AdminContentPage() {
   const [drafts, setDrafts] = useState<SiteContentMap>(defaultSiteContent)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [activePageId, setActivePageId] = useState(PAGE_GROUPS[0].id)
+  const [activeContentId, setActiveContentId] = useState("")
   const [previewVersion, setPreviewVersion] = useState(0)
   const [pageSaveState, setPageSaveState] = useState<SaveState>("idle")
   const previewFrame = useRef<HTMLIFrameElement>(null)
@@ -139,14 +140,6 @@ export default function AdminContentPage() {
     })
   }
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
   const activePage = PAGE_GROUPS.find((page) => page.id === activePageId) ?? PAGE_GROUPS[0]
   const editableItems = activePage.items
     .map(([section, key]) => ({
@@ -157,7 +150,24 @@ export default function AdminContentPage() {
     .filter((item): item is { section: string; key: string; value: Record<string, unknown> } =>
       isPlainObject(item.value)
     )
+  const activeItem = editableItems.find((item) => contentId(item.section, item.key) === activeContentId) ?? editableItems[0]
   const previewUrl = previewSrc(activePage.previewPath, previewVersion)
+
+  useEffect(() => {
+    if (loading) return
+    const ids = editableItems.map((item) => contentId(item.section, item.key))
+    if (!ids.includes(activeContentId)) {
+      setActiveContentId(ids[0] ?? "")
+    }
+  }, [activeContentId, activePageId, drafts, editableItems, loading])
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   async function saveActivePage() {
     const rows = editableItems.map(({ section, key, value }) => ({
@@ -206,7 +216,7 @@ export default function AdminContentPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b border-border bg-card">
-        <div className="mx-auto max-w-7xl px-6 py-6">
+        <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6">
           <h1 className="text-2xl font-bold text-foreground">Site Content</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Choose a page, edit the fields, and preview the live website beside your changes.
@@ -215,77 +225,92 @@ export default function AdminContentPage() {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-8 xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.05fr)]">
-        <aside className="space-y-6">
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <h2 className="text-sm font-semibold text-foreground">Pages</h2>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-              {PAGE_GROUPS.map((page) => (
-                <button
-                  key={page.id}
-                  type="button"
-                  onClick={() => setActivePageId(page.id)}
-                  className={`rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    activePage.id === page.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  {page.label}
-                </button>
-              ))}
-            </div>
+      <div className="mx-auto max-w-[1500px] px-4 py-4 sm:px-6">
+        <div className="mb-4 overflow-x-auto rounded-xl border border-border bg-card p-2">
+          <div className="flex min-w-max gap-2">
+            {PAGE_GROUPS.map((page) => (
+              <button
+                key={page.id}
+                type="button"
+                onClick={() => setActivePageId(page.id)}
+                className={`rounded-lg px-3 py-2 text-sm transition-colors ${
+                  activePage.id === page.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {page.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">{activePage.label}</h2>
-              <p className="text-sm text-muted-foreground">
-                Edit the content sections used on this page. The preview updates while you type.
-              </p>
-            </div>
-            <div className="sticky top-4 z-10 rounded-xl border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(560px,1.1fr)]">
+          <aside className="space-y-4">
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">{activePage.label}</h2>
                 <p className="text-sm text-muted-foreground">
-                  Save all changes for {activePage.label}.
+                  Pick a section to edit. The preview updates while you type.
                 </p>
-                <SaveButton
-                  state={pageSaveState}
-                  onClick={saveActivePage}
-                  label="Save Page Changes"
-                />
               </div>
-              {errors[contentId(activePage.id, "save")] && (
-                <p className="mt-2 flex items-center gap-1.5 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4" /> {errors[contentId(activePage.id, "save")]}
-                </p>
-              )}
+              <SaveButton
+                state={pageSaveState}
+                onClick={saveActivePage}
+                label="Save Page Changes"
+              />
             </div>
 
-            {editableItems.map(({ section, key, value }) => {
-                const stateKey = contentId(section, key)
-                return (
-                  <Section
-                    key={stateKey}
-                    title={sectionLabel(key)}
-                    description={sectionDescription(section, key)}
-                  >
-                    <ObjectFields
-                      value={value}
-                      onChange={(path, nextValue) => updateValue(section, key, path, nextValue)}
-                    />
-                    {errors[stateKey] && (
-                      <p className="flex items-center gap-1.5 text-sm text-destructive">
-                        <AlertCircle className="h-4 w-4" /> {errors[stateKey]}
-                      </p>
-                    )}
-                  </Section>
-                )
-              })}
-          </div>
-        </aside>
+            {editableItems.length > 1 && (
+              <div className="overflow-x-auto rounded-xl border border-border bg-card p-2">
+                <div className="flex min-w-max gap-2">
+                  {editableItems.map(({ section, key }) => {
+                    const stateKey = contentId(section, key)
+                    return (
+                      <button
+                        key={stateKey}
+                        type="button"
+                        onClick={() => setActiveContentId(stateKey)}
+                        className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
+                          stateKey === contentId(activeItem.section, activeItem.key)
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                        }`}
+                      >
+                        {sectionLabel(key)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
-        <section className="sticky top-6 hidden h-[calc(100vh-3rem)] overflow-hidden rounded-2xl border border-border bg-card shadow-sm xl:block">
+            {errors[contentId(activePage.id, "save")] && (
+              <p className="flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" /> {errors[contentId(activePage.id, "save")]}
+              </p>
+            )}
+
+            {activeItem && (
+              <Section
+                key={contentId(activeItem.section, activeItem.key)}
+                title={sectionLabel(activeItem.key)}
+                description={sectionDescription(activeItem.section, activeItem.key)}
+              >
+                <ObjectFields
+                  value={activeItem.value}
+                  onChange={(path, nextValue) => updateValue(activeItem.section, activeItem.key, path, nextValue)}
+                />
+                {errors[contentId(activeItem.section, activeItem.key)] && (
+                  <p className="flex items-center gap-1.5 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4" /> {errors[contentId(activeItem.section, activeItem.key)]}
+                  </p>
+                )}
+              </Section>
+            )}
+          </aside>
+
+        <section className="sticky top-4 hidden h-[calc(100vh-2rem)] overflow-hidden rounded-xl border border-border bg-card shadow-sm xl:block">
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Live Preview</h2>
@@ -306,6 +331,7 @@ export default function AdminContentPage() {
             className="h-full w-full bg-background"
           />
         </section>
+        </div>
       </div>
     </div>
   )
@@ -608,9 +634,9 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-6 sm:p-8 space-y-5">
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-5 space-y-4">
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 shrink-0">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
           <FileText className="h-5 w-5 text-primary" />
         </div>
         <div>
