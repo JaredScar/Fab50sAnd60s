@@ -1,8 +1,13 @@
 "use client"
 
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { AlertCircle, Car } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
 
 interface Props {
   error?: string
@@ -10,9 +15,8 @@ interface Props {
 
 const ERROR_MESSAGES: Record<string, string> = {
   unauthorized:
-    "Your Google account is not approved for admin access. Please contact the club president to be granted access.",
-  auth_failed:
-    "Authentication failed. Please try again.",
+    "Your account is not approved for admin access. Please contact the club president to be granted access.",
+  auth_failed: "Authentication failed. Please try again.",
 }
 
 function GoogleIcon() {
@@ -44,6 +48,12 @@ function GoogleIcon() {
 }
 
 export function LoginForm({ error }: Props) {
+  const router = useRouter()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [formError, setFormError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
   async function signInWithGoogle() {
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
@@ -54,23 +64,38 @@ export function LoginForm({ error }: Props) {
     })
   }
 
+  async function signInWithEmail(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError(null)
+    setSubmitting(true)
+    const supabase = createClient()
+    const { error: signErr } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+    if (signErr) {
+      setFormError(signErr.message)
+      setSubmitting(false)
+      return
+    }
+    router.replace("/admin")
+    router.refresh()
+    setSubmitting(false)
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20">
             <Car className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            Admin Portal
-          </h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Admin Portal</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Fabulous 50s &amp; 60s Nostalgia Car Club
           </p>
         </div>
 
-        {/* Error banner */}
         {error && ERROR_MESSAGES[error] && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
             <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
@@ -83,13 +108,9 @@ export function LoginForm({ error }: Props) {
           </div>
         )}
 
-        {/* Card */}
-        <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
-          <p className="text-sm text-muted-foreground text-center mb-6 leading-relaxed">
-            Sign in with the Google account that was approved for admin access.
-          </p>
-
+        <div className="rounded-2xl border border-border bg-card p-8 shadow-sm space-y-6">
           <Button
+            type="button"
             onClick={signInWithGoogle}
             variant="outline"
             className="w-full gap-3 h-12 text-sm font-semibold border-2"
@@ -99,10 +120,59 @@ export function LoginForm({ error }: Props) {
             Continue with Google
           </Button>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              or
+            </span>
+            <Separator className="flex-1" />
+          </div>
+
+          <form onSubmit={signInWithEmail} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="login-email">Email</Label>
+              <Input
+                id="login-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting}
+                required
+                className="h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="login-password">Password</Label>
+              <Input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={submitting}
+                required
+                className="h-11"
+              />
+            </div>
+            {formError && (
+              <p className="text-sm text-destructive leading-relaxed" role="alert">
+                {formError}
+              </p>
+            )}
+            <Button type="submit" className="w-full h-11" disabled={submitting}>
+              {submitting ? "Signing in…" : "Sign in with email"}
+            </Button>
+          </form>
+
+          <p className="text-center text-xs text-muted-foreground leading-relaxed">
             Only approved club administrators can sign in.
             <br />
-            Contact the club president if you need access.
+            Contact the club president if you need access. Use Security in the admin sidebar to
+            set up two-factor authentication after you sign in.
           </p>
         </div>
       </div>

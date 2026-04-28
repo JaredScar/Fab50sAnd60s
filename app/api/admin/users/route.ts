@@ -108,8 +108,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "email and role are required" }, { status: 400 })
   }
 
-  if (!normalizedEmail.endsWith("@gmail.com")) {
-    return NextResponse.json({ error: "Please enter a Gmail address." }, { status: 400 })
+  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+  if (!emailLooksValid) {
+    return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 })
   }
 
   if (!VALID_ROLES.includes(role)) {

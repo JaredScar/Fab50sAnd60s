@@ -6,6 +6,7 @@ import {
   hasAdminPermission,
   normalizeAdminPermissions,
 } from "@/lib/admin-permissions"
+import { resolveAdminRoleForMiddleware } from "@/lib/admin-middleware"
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -14,7 +15,7 @@ export async function middleware(request: NextRequest) {
   if (!pathname.startsWith("/admin") && !pathname.startsWith("/auth")) {
     return NextResponse.next()
   }
-  if (pathname === "/admin/login" || pathname.startsWith("/auth/")) {
+  if (pathname === "/admin/login" || pathname === "/auth/callback") {
     return NextResponse.next()
   }
 
@@ -55,17 +56,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  let role = user.app_metadata?.role as string | undefined
+  let role = await resolveAdminRoleForMiddleware(supabase, user)
   let permissions = user.app_metadata?.admin_permissions
 
-  if (!role) {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle()
-
-    role = data?.role as string | undefined
+  if (role && !user.app_metadata?.role) {
     permissions = normalizeAdminPermissions(permissions) ?? defaultPermissionsForRole(role)
   }
 
@@ -74,6 +68,30 @@ export async function middleware(request: NextRequest) {
     loginUrl.pathname = "/admin/login"
     loginUrl.searchParams.set("error", "unauthorized")
     return NextResponse.redirect(loginUrl)
+  }
+
+  const { data: aalData, error: aalError } =
+    await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  const needsMfaStep =
+    !aalError &&
+    aalData?.currentLevel === "aal1" &&
+    aalData?.nextLevel === "aal2"
+
+  if (pathname === "/auth/mfa") {
+    if (!needsMfaStep) {
+      const adminUrl = request.nextUrl.clone()
+      adminUrl.pathname = "/admin"
+      adminUrl.search = ""
+      return NextResponse.redirect(adminUrl)
+    }
+    return supabaseResponse
+  }
+
+  if (needsMfaStep) {
+    const mfaUrl = request.nextUrl.clone()
+    mfaUrl.pathname = "/auth/mfa"
+    mfaUrl.search = ""
+    return NextResponse.redirect(mfaUrl)
   }
 
   // Only super_admin may access /admin/users

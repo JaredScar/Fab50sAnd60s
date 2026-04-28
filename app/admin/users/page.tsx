@@ -200,21 +200,21 @@ export default function AdminUsersPage() {
               <div className="mb-4 flex items-center gap-3">
                 <UserPlus className="h-5 w-5 text-primary" />
                 <div>
-                  <h2 className="text-base font-semibold text-foreground">Pre-Approve Gmail User</h2>
+                  <h2 className="text-base font-semibold text-foreground">Pre-Approve admin user</h2>
                   <p className="text-sm text-muted-foreground">
-                    Add someone before they sign in. Their role and tab access will be ready the next time they use Google login.
+                    Invite by email before they sign in. They can use Google or the password they set from the invite link.
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[1fr_12rem]">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Gmail address</label>
+                  <label className="text-sm font-medium text-foreground">Email address</label>
                   <input
                     type="email"
                     value={newEmail}
                     onChange={(event) => setNewEmail(event.target.value)}
-                    placeholder="member@gmail.com"
+                    placeholder="admin@example.com"
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>

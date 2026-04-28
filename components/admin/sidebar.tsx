@@ -12,6 +12,7 @@ import {
   Heart,
   FileText,
   ShieldCheck,
+  KeyRound,
   LogOut,
   ChevronRight,
   ExternalLink,
@@ -132,7 +133,22 @@ export function AdminSidebar({ user }: Props) {
           </Link>
         )}
 
-        <div className="pt-2 mt-2 border-t border-border">
+        <div className="pt-2 mt-2 border-t border-border space-y-1">
+          <Link
+            href="/admin/security"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors group",
+              isActive("/admin/security")
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <KeyRound className="h-4 w-4 shrink-0" />
+            <span className="flex-1">Security</span>
+            {isActive("/admin/security") && (
+              <ChevronRight className="h-3.5 w-3.5 opacity-60" />
+            )}
+          </Link>
           <Link
             href="/"
             target="_blank"
