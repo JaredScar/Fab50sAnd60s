@@ -21,6 +21,10 @@ export default async function AdminLayout({
 
   const access = await resolveAdminAccess(user)
 
+  if (user.app_metadata?.must_change_password === true) {
+    return <>{children}</>
+  }
+
   const adminUser = {
     name:
       (user.user_metadata?.full_name as string) ||

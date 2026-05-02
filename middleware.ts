@@ -70,6 +70,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  const mustChangePassword = user.app_metadata?.must_change_password === true
+
+  if (mustChangePassword && pathname !== "/admin/change-password") {
+    const changeUrl = request.nextUrl.clone()
+    changeUrl.pathname = "/admin/change-password"
+    changeUrl.search = ""
+    return NextResponse.redirect(changeUrl)
+  }
+
+  if (!mustChangePassword && pathname === "/admin/change-password") {
+    const adminUrl = request.nextUrl.clone()
+    adminUrl.pathname = "/admin"
+    adminUrl.search = ""
+    return NextResponse.redirect(adminUrl)
+  }
+
   const { data: aalData, error: aalError } =
     await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
   const needsMfaStep =
@@ -87,7 +103,7 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  if (needsMfaStep) {
+  if (needsMfaStep && !(mustChangePassword && pathname === "/admin/change-password")) {
     const mfaUrl = request.nextUrl.clone()
     mfaUrl.pathname = "/auth/mfa"
     mfaUrl.search = ""

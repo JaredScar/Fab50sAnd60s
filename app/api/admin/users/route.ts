@@ -90,8 +90,17 @@ export async function PUT(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const { data: targetUser, error: getUserError } = await service.auth.admin.getUserById(userId)
+  if (getUserError || !targetUser.user) {
+    return NextResponse.json({ error: getUserError?.message ?? "User not found." }, { status: 500 })
+  }
+
   const { error: metadataError } = await service.auth.admin.updateUserById(userId, {
-    app_metadata: { role, admin_permissions: nextPermissions },
+    app_metadata: {
+      ...(targetUser.user.app_metadata ?? {}),
+      role,
+      admin_permissions: nextPermissions,
+    },
   })
 
   if (metadataError) {
@@ -175,8 +184,17 @@ export async function POST(request: NextRequest) {
 
   if (roleError) return NextResponse.json({ error: roleError.message }, { status: 500 })
 
+  const nextAppMeta: Record<string, unknown> = {
+    ...(authUser.app_metadata ?? {}),
+    role,
+    admin_permissions: nextPermissions,
+  }
+  if (temporaryPassword) {
+    nextAppMeta.must_change_password = true
+  }
+
   const { error: metadataError } = await service.auth.admin.updateUserById(authUser.id, {
-    app_metadata: { role, admin_permissions: nextPermissions },
+    app_metadata: nextAppMeta,
   })
 
   if (metadataError) {
@@ -202,8 +220,18 @@ export async function DELETE(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const { data: targetUser, error: getUserError } = await service.auth.admin.getUserById(userId)
+  if (getUserError || !targetUser.user) {
+    return NextResponse.json({ error: getUserError?.message ?? "User not found." }, { status: 500 })
+  }
+
   const { error: metadataError } = await service.auth.admin.updateUserById(userId, {
-    app_metadata: { role: null, admin_permissions: [] },
+    app_metadata: {
+      ...(targetUser.user.app_metadata ?? {}),
+      role: null,
+      admin_permissions: [],
+      must_change_password: false,
+    },
   })
 
   if (metadataError) {

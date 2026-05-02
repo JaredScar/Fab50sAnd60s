@@ -321,9 +321,8 @@ export default function AdminUsersPage() {
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    This password is shown only once. Share it securely with the user. They should sign in at admin login
-                    and change their password afterward (for example using forgot password if you have that email
-                    template enabled in Supabase).
+                    This password is shown only once. Share it securely with the user. After they sign in, they must
+                    choose a new password before using the admin portal.
                   </p>
                   <dl className="grid gap-2 text-sm">
                     <div>

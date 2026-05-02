@@ -38,7 +38,11 @@ export async function resolveAdminAccess(user: User): Promise<ResolvedAdminAcces
   const permissions = normalizeAdminPermissions(metadataPermissions) ?? defaultPermissionsForRole(role)
 
   await service.auth.admin.updateUserById(user.id, {
-    app_metadata: { role, admin_permissions: permissions },
+    app_metadata: {
+      ...(user.app_metadata ?? {}),
+      role,
+      admin_permissions: permissions,
+    },
   })
 
   return { role, permissions }
