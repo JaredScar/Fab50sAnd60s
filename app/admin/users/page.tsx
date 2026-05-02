@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, ShieldCheck, UserX, RefreshCw, UserPlus } from "lucide-react"
+import { Copy, Loader2, ShieldCheck, UserX, RefreshCw, UserPlus, X } from "lucide-react"
 import { format } from "date-fns"
 import {
   ADMIN_PERMISSION_DESCRIPTIONS,
@@ -48,9 +48,14 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
   const [newEmail, setNewEmail] = useState("")
+  const [newDisplayName, setNewDisplayName] = useState("")
   const [newRole, setNewRole] = useState("editor")
   const [newPermissions, setNewPermissions] = useState<AdminPermission[]>(defaultPermissionsForRole("editor"))
   const [inviteError, setInviteError] = useState("")
+  const [newUserCredentials, setNewUserCredentials] = useState<{
+    email: string
+    password: string
+  } | null>(null)
 
   useEffect(() => {
     fetchUsers()
@@ -116,30 +121,44 @@ export default function AdminUsersPage() {
 
   async function handlePreApproveUser() {
     setInviteError("")
+    setNewUserCredentials(null)
     setUpdating("new-user")
 
+    const emailTrimmed = newEmail.trim()
     const res = await fetch("/api/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: newEmail,
+        email: emailTrimmed,
+        displayName: newDisplayName.trim() || undefined,
         role: newRole,
         permissions: newPermissions,
       }),
     })
 
+    const body = await res.json().catch(() => ({}))
+
     if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: "Unable to add user." }))
-      setInviteError(body.error ?? "Unable to add user.")
+      setInviteError(typeof body.error === "string" ? body.error : "Unable to add user.")
       setUpdating(null)
       return
     }
 
+    if (typeof body.temporaryPassword === "string") {
+      setNewUserCredentials({ email: emailTrimmed, password: body.temporaryPassword })
+    }
+
     setNewEmail("")
+    setNewDisplayName("")
     setNewRole("editor")
     setNewPermissions(defaultPermissionsForRole("editor"))
     setUpdating(null)
     fetchUsers()
+  }
+
+  async function copyPasswordOnly() {
+    if (!newUserCredentials) return
+    await navigator.clipboard.writeText(newUserCredentials.password)
   }
 
   function handleNewRoleChange(role: string) {
@@ -202,7 +221,9 @@ export default function AdminUsersPage() {
                 <div>
                   <h2 className="text-base font-semibold text-foreground">Pre-Approve admin user</h2>
                   <p className="text-sm text-muted-foreground">
-                    Invite by email before they sign in. They can use Google or the password they set from the invite link.
+                    Creates a confirmed account with a temporary password. Copy it from the banner below and share it
+                    securely. They sign in on the admin login with email and password. If the address already belongs to
+                    an account, we only update role and optional display name — we never reset an existing password.
                   </p>
                 </div>
               </div>
@@ -236,6 +257,24 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              <div className="mt-4 space-y-1.5">
+                <label className="text-sm font-medium text-foreground">
+                  Display name <span className="font-normal text-muted-foreground">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={newDisplayName}
+                  onChange={(event) => setNewDisplayName(event.target.value)}
+                  placeholder="e.g. Pat Smith"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  maxLength={120}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Shown in the admin UI. You can set or update this even when adding access to someone who already has
+                  an account.
+                </p>
+              </div>
+
               <div className="mt-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Allowed admin tabs
@@ -267,6 +306,43 @@ export default function AdminUsersPage() {
               </div>
 
               {inviteError && <p className="mt-3 text-sm text-destructive">{inviteError}</p>}
+
+              {newUserCredentials && (
+                <div className="mt-4 rounded-xl border border-amber-500/35 bg-amber-500/8 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">New account — copy the temporary password</p>
+                    <button
+                      type="button"
+                      onClick={() => setNewUserCredentials(null)}
+                      className="rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+                      aria-label="Dismiss"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    This password is shown only once. Share it securely with the user. They should sign in at admin login
+                    and change their password afterward (for example using forgot password if you have that email
+                    template enabled in Supabase).
+                  </p>
+                  <dl className="grid gap-2 text-sm">
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground">Email</dt>
+                      <dd className="font-mono text-foreground break-all">{newUserCredentials.email}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-muted-foreground">Temporary password</dt>
+                      <dd className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-foreground break-all">{newUserCredentials.password}</span>
+                        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={copyPasswordOnly}>
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy
+                        </Button>
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
 
               <div className="mt-5">
                 <Button
@@ -413,7 +489,7 @@ export default function AdminUsersPage() {
                     Signed In (No Role Assigned) — {pendingUsers.length}
                   </h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    These Google accounts have logged in but have not been granted any role. Assign a role to grant access.
+                    These accounts have signed in but have not been granted any role. Assign a role to grant access.
                   </p>
                 </div>
 

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import {
@@ -8,6 +9,10 @@ import {
 import { resolveAdminAccess } from "@/lib/admin-auth"
 
 const VALID_ROLES = ["super_admin", "admin", "editor"]
+
+function generateTemporaryPassword(): string {
+  return randomBytes(15).toString("base64url")
+}
 
 async function requireSuperAdmin() {
   const supabase = await createClient()
@@ -101,8 +106,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const { email, role, permissions } = await request.json()
+  const { email, role, permissions, displayName } = await request.json()
   const normalizedEmail = String(email ?? "").trim().toLowerCase()
+  const displayNameTrimmed = String(displayName ?? "").trim().slice(0, 120) || undefined
 
   if (!normalizedEmail || !role) {
     return NextResponse.json({ error: "email and role are required" }, { status: 400 })
@@ -129,17 +135,34 @@ export async function POST(request: NextRequest) {
   if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
 
   let authUser = existingUsers.users.find((user) => user.email?.toLowerCase() === normalizedEmail)
+  let temporaryPassword: string | undefined
 
   if (!authUser) {
-    const { data: inviteData, error: inviteError } = await service.auth.admin.inviteUserByEmail(
-      normalizedEmail,
-      { redirectTo: `${request.nextUrl.origin}/auth/callback` }
-    )
+    const password = generateTemporaryPassword()
+    const { data: created, error: createError } = await service.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: true,
+      ...(displayNameTrimmed
+        ? { user_metadata: { full_name: displayNameTrimmed } }
+        : {}),
+    })
 
-    if (inviteError) {
-      return NextResponse.json({ error: inviteError.message }, { status: 500 })
+    if (createError) {
+      return NextResponse.json({ error: createError.message }, { status: 500 })
     }
-    authUser = inviteData.user
+    authUser = created.user
+    temporaryPassword = password
+  } else if (displayNameTrimmed) {
+    const { error: nameError } = await service.auth.admin.updateUserById(authUser.id, {
+      user_metadata: {
+        ...((authUser.user_metadata ?? {}) as Record<string, unknown>),
+        full_name: displayNameTrimmed,
+      },
+    })
+    if (nameError) {
+      return NextResponse.json({ error: nameError.message }, { status: 500 })
+    }
   }
 
   if (!authUser?.id) {
@@ -160,7 +183,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: metadataError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({
+    success: true,
+    ...(temporaryPassword ? { temporaryPassword } : {}),
+  })
 }
 
 export async function DELETE(request: NextRequest) {
